@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <!-- Studio Background -->
+    <path
+        android:fillColor="#F8F4F0"
+        android:pathData="M0,0h200v200h-200z" />
+
+    <!-- Soft cast shadow on floor -->
+    <path
+        android:fillColor="#122C1810"
+        android:pathData="M48,168 a52,14 0 1,0 104,0 a52,14 0 1,0 -104,0" />
+    <path
+        android:fillColor="#182C1810"
+        android:pathData="M62,168 a38,9 0 1,0 76,0 a38,9 0 1,0 -76,0" />
+
+    <!-- Pot Base and Bulbous Body -->
+    <path
+        android:fillColor="#C4622D"
+        android:pathData="M64,88 C46,104 46,140 68,162 C78,172 122,172 132,162 C154,140 154,104 136,88 Z" />
+
+    <!-- Clay Shading & 3D Volume -->
+    <path
+        android:fillColor="#B45322"
+        android:pathData="M110,88 C135,102 154,120 136,162 C126,170 105,172 90,172 C120,172 145,145 136,88 Z" />
+    <path
+        android:fillColor="#9A4215"
+        android:pathData="M125,105 C145,125 142,150 128,164 C142,148 142,122 125,105 Z" />
+
+    <!-- Natural Soft Highlight on Left Shoulder -->
+    <path
+        android:fillColor="#30FFFFFF"
+        android:pathData="M64,96 C54,112 56,134 68,150 C62,136 60,114 72,98 Z" />
+    <path
+        android:fillColor="#22FFE8DC"
+        android:pathData="M74,104 C68,116 70,132 80,144 C74,132 74,116 82,106 Z" />
+
+    <!-- Pot Neck Collar -->
+    <path
+        android:fillColor="#A84C1D"
+        android:pathData="M70,86 C70,83 130,83 130,86 C130,89 70,89 70,86 Z" />
+    <path
+        android:fillColor="#C4622D"
+        android:pathData="M72,82 C72,78 128,78 128,82 L132,88 L68,88 Z" />
+
+    <!-- Terracotta Lid Flange & Rim -->
+    <path
+        android:fillColor="#943F14"
+        android:pathData="M66,80 C66,77 134,77 134,80 C134,83 66,83 66,80 Z" />
+    <path
+        android:fillColor="#BA5725"
+        android:pathData="M68,78 C68,74 132,74 132,78 C132,82 68,82 68,78 Z" />
+
+    <!-- Dome of Lid -->
+    <path
+        android:fillColor="#C4622D"
+        android:pathData="M74,76 C76,64 124,64 126,76 Z" />
+    <!-- Dome Highlight -->
+    <path
+        android:fillColor="#25FFFFFF"
+        android:pathData="M80,74 C82,67 104,66 106,74 Z" />
+
+    <!-- Lid Knob -->
+    <path
+        android:fillColor="#A84C1D"
+        android:pathData="M95,64 h10 v3 h-10 Z" />
+    <path
+        android:fillColor="#C4622D"
+        android:pathData="M93,60 a7,6 0 1,0 14,0 a7,6 0 1,0 -14,0" />
+    <path
+        android:fillColor="#30FFFFFF"
+        android:pathData="M96,58 a3,2 0 1,0 6,0 a3,2 0 1,0 -6,0" />
+</vector>

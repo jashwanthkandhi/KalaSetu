@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Traditional Saffron Sun / Artisan Glow behind pot -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M54,30 A14,14 0 0,1 54,58 A14,14 0 0,1 54,30 Z" />
+    <!-- Sun rays -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFE082"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,23 L54,27 M54,61 L54,65 M34,44 L38,44 M70,44 L74,44 M40,30 L43,33 M65,55 L68,58 M40,58 L43,55 M65,33 L68,30" />
+    
+    <!-- Terracotta Pot Body (Kumbha/Kalasha artisan silhouette) -->
+    <!-- Rim / Neck -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,44 h22 a2,2 0 0,1 2,2 v1 a2,2 0 0,1 -2,2 h-22 a2,2 0 0,1 -2,-2 v-1 a2,2 0 0,1 2,-2 Z" />
+    <!-- Neck taper -->
+    <path
+        android:fillColor="#FFF8E1"
+        android:pathData="M46,49 h16 l2,6 h-20 Z" />
+    <!-- Round Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,55 C33,63 34,75 42,80 C47,83 61,83 66,80 C74,75 75,63 70,55 Z" />
+    <!-- Artisanal decorative band -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C4622D"
+        android:strokeWidth="2"
+        android:pathData="M37,65 Q54,71 71,65" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C4622D"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M44,71 Q54,75 64,71" />
+    <!-- Small traditional base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,81 h12 v2 a1,1 0 0,1 -1,1 h-10 a1,1 0 0,1 -1,-1 Z" />
+</vector>

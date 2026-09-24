@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#10C4622D"
+        android:pathData="M60,60m-48,0a48,48 0 1,0 96,0a48,48 0 1,0 -96,0" />
+    <!-- Line art craft pot and chisel -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C4622D"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M48,44 h24 v4 h-24 Z M52,48 L46,60 C40,70 42,86 52,90 C56,92 64,92 68,90 C78,86 80,70 74,60 L68,48" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D4A017"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M78,38 L84,32 M84,38 L78,32" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#D4A017"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M38,78 L42,74 M42,78 L38,74" />
+</vector>

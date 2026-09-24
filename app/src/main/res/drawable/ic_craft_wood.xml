@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#EFE8E1"
+        android:pathData="M0,0h120v120h-120z" />
+    <!-- Wooden Handicraft (Carved Sheesham Wood Craft Elephant/Figurine) -->
+    <path
+        android:fillColor="#152C1810"
+        android:pathData="M30,100 a30,6 0 1,0 60,0 a30,6 0 1,0 -60,0" />
+    <!-- Figurine Silhouette in rich Sheesham Walnut / Teak -->
+    <path
+        android:fillColor="#5D4037"
+        android:pathData="M38,58 C38,42 54,34 68,40 C76,44 82,54 82,66 L82,94 L72,94 L72,78 L64,78 L64,94 L54,94 L54,78 L46,78 L46,94 L38,94 Z" />
+    <path
+        android:fillColor="#8D6E63"
+        android:pathData="M44,48 C44,38 56,32 66,36 C72,39 76,46 76,56 L72,56 C72,48 68,43 64,41 C55,37 47,42 47,50 Z" />
+    <!-- Artisanal Carving Brass inlays -->
+    <path
+        android:fillColor="#D4A017"
+        android:pathData="M52,60 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <path
+        android:fillColor="#D4A017"
+        android:pathData="M66,62 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path
+        android:fillColor="#D4A017"
+        android:pathData="M58,72 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+</vector>

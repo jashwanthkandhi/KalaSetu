@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <!-- Studio Background -->
+    <path
+        android:fillColor="#F8F4F0"
+        android:pathData="M0,0h200v200h-200z" />
+
+    <!-- Shadow -->
+    <path
+        android:fillColor="#152C1810"
+        android:pathData="M44,166 a56,12 0 1,0 112,0 a56,12 0 1,0 -112,0" />
+
+    <!-- Basket Body Form -->
+    <path
+        android:fillColor="#D9B277"
+        android:pathData="M52,80 L58,162 C58,166 142,166 142,162 L148,80 Z" />
+
+    <!-- Inner depth shadow at rim -->
+    <path
+        android:fillColor="#967039"
+        android:pathData="M52,80 a48,10 0 1,0 96,0 a48,10 0 1,0 -96,0" />
+    <path
+        android:fillColor="#C69E62"
+        android:pathData="M54,82 a46,8 0 1,0 92,0 a46,8 0 1,0 -92,0" />
+
+    <!-- Basket Rim Thickening Strip -->
+    <path
+        android:fillColor="#E2C18D"
+        android:pathData="M50,78 a50,9 0 0,0 100,0 a50,9 0 0,0 -100,0 Z" />
+
+    <!-- Diagonal Woven Ribs Pattern (Herringbone Cane Texture) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#B88E52"
+        android:strokeWidth="2.5"
+        android:pathData="M54,92 L146,155 M54,106 L146,168 M56,120 L130,170 M58,136 L110,170" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#C8A066"
+        android:strokeWidth="2.5"
+        android:pathData="M146,92 L54,155 M146,106 L54,168 M144,120 L70,170 M142,136 L90,170" />
+
+    <!-- Horizontal Bindings -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#A88046"
+        android:strokeWidth="1.5"
+        android:pathData="M54,100 Q100,110 146,100 M55,120 Q100,130 145,120 M56,140 Q100,150 144,140 M57,156 Q100,164 143,156" />
+
+    <!-- Side Shading & Highlights -->
+    <path
+        android:fillColor="#22FFFFFF"
+        android:pathData="M52,82 L58,162 L74,164 L68,82 Z" />
+    <path
+        android:fillColor="#22000000"
+        android:pathData="M132,82 L148,80 L142,162 L128,164 Z" />
+</vector>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#F0ECE4"
+        android:pathData="M0,0h120v120h-120z" />
+    <!-- Bamboo Basket -->
+    <!-- Base Shadow -->
+    <path
+        android:fillColor="#152C1810"
+        android:pathData="M30,100 a30,6 0 1,0 60,0 a30,6 0 1,0 -60,0" />
+    <!-- Handle -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#B58632"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M40,65 C40,30 80,30 80,65" />
+    <!-- Basket Body -->
+    <path
+        android:fillColor="#D8A74A"
+        android:pathData="M30,60 L38,96 C40,99 80,99 82,96 L90,60 Z" />
+    <!-- Bamboo rim -->
+    <path
+        android:fillColor="#9E7322"
+        android:pathData="M27,56 h66 a3,3 0 0,1 3,3 v2 a3,3 0 0,1 -3,3 h-66 a3,3 0 0,1 -3,-3 v-2 a3,3 0 0,1 3,-3 Z" />
+    <!-- Weave texture lines -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#8D6419"
+        android:strokeWidth="1.5"
+        android:pathData="M35,66 L85,88 M40,64 L82,92 M85,66 L35,88 M80,64 L38,92" />
+</vector>

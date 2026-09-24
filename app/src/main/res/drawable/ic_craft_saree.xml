@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#F4EDE6"
+        android:pathData="M0,0h120v120h-120z" />
+    <!-- Handloom Cotton Saree folded with rich gold zari border -->
+    <!-- Shadow -->
+    <path
+        android:fillColor="#152C1810"
+        android:pathData="M24,96 a36,6 0 1,0 72,0 a36,6 0 1,0 -72,0" />
+    <!-- Saree fold 1 (Deep maroon/crimson handloom) -->
+    <path
+        android:fillColor="#9C27B0"
+        android:pathData="M28,45 L92,35 L96,85 L26,93 Z" />
+    <!-- Saree fold 2 (Warm terracotta / indigo pleats) -->
+    <path
+        android:fillColor="#880E4F"
+        android:pathData="M32,48 L88,40 L92,80 L28,88 Z" />
+    <!-- Golden Zari Border (Saffron/Gold accent) -->
+    <path
+        android:fillColor="#D4A017"
+        android:pathData="M28,45 L92,35 L90,44 L27,53 Z" />
+    <!-- Geometric Ikat motifs -->
+    <path
+        android:fillColor="#FFF8E1"
+        android:pathData="M45,62 L50,56 L55,62 L50,68 Z M65,59 L70,53 L75,59 L70,65 Z M55,74 L60,68 L65,74 L60,80 Z" />
+</vector>

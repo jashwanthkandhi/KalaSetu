@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    <!-- Soft warm ambient glow -->
+    <path
+        android:fillColor="#15D4A017"
+        android:pathData="M120,120m-90,0a90,90 0 1,0 180,0a90,90 0 1,0 -180,0" />
+    <path
+        android:fillColor="#22FFF3E0"
+        android:pathData="M120,120m-70,0a70,70 0 1,0 140,0a70,70 0 1,0 -140,0" />
+    <!-- Sunburst artisan motifs -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#50D4A017"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M120,25 L120,38 M120,202 L120,215 M25,120 L38,120 M202,120 L215,120 M53,53 L62,62 M178,178 L187,187 M53,187 L62,178 M178,62 L187,53" />
+    <!-- Center Terracotta Pot / Kumbha -->
+    <!-- Base shadow -->
+    <path
+        android:fillColor="#202C1810"
+        android:pathData="M80,186 a40,10 0 1,0 80,0 a40,10 0 1,0 -80,0" />
+    <!-- Pot rim -->
+    <path
+        android:fillColor="#A84E20"
+        android:pathData="M95,80 h50 a4,4 0 0,1 4,4 v2 a4,4 0 0,1 -4,4 h-50 a4,4 0 0,1 -4,-4 v-2 a4,4 0 0,1 4,-4 Z" />
+    <!-- Neck -->
+    <path
+        android:fillColor="#C4622D"
+        android:pathData="M102,90 h36 l5,18 h-46 Z" />
+    <!-- Main bulbous body -->
+    <path android:pathData="M80,108 C65,128 68,162 90,176 C105,185 135,185 150,176 C172,162 175,128 160,108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="80"
+                android:startY="108"
+                android:endX="160"
+                android:endY="180"
+                android:type="linear">
+                <item android:color="#E07943" android:offset="0.0" />
+                <item android:color="#C4622D" android:offset="0.5" />
+                <item android:color="#9A3E14" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Ethnic geometric ring patterns -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFEDB3"
+        android:strokeWidth="3"
+        android:pathData="M82,135 Q120,150 158,135" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFEDB3"
+        android:strokeWidth="2"
+        android:pathData="M88,145 Q120,160 152,145" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFEDB3"
+        android:strokeWidth="2"
+        android:pathData="M96,155 Q120,168 144,155" />
+    <!-- Artisan foot -->
+    <path
+        android:fillColor="#9A3E14"
+        android:pathData="M106,179 h28 v6 a2,2 0 0,1 -2,2 h-24 a2,2 0 0,1 -2,-2 Z" />
+</vector>

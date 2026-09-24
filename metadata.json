@@ -1,0 +1,6 @@
+{
+  "name": "KalaSetu",
+  "description": "AI-powered multilingual digital marketplace manager for Indian artisans",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

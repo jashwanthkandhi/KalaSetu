@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+    <!-- Studio Background -->
+    <path
+        android:fillColor="#F8F4F0"
+        android:pathData="M0,0h200v200h-200z" />
+
+    <!-- Soft Fabric Shadow -->
+    <path
+        android:fillColor="#152C1810"
+        android:pathData="M38,168 a62,12 0 1,0 124,0 a62,12 0 1,0 -124,0" />
+
+    <!-- Folded Handloom Dupatta Cotton Base -->
+    <path
+        android:fillColor="#F5EFE6"
+        android:pathData="M40,54 L160,54 L154,166 L36,166 Z" />
+
+    <!-- Terracotta Border Ribbon along Edge -->
+    <path
+        android:fillColor="#C4622D"
+        android:pathData="M142,54 L160,54 L154,166 L136,166 Z" />
+    <path
+        android:fillColor="#943F14"
+        android:pathData="M136,54 L138,54 L132,166 L130,166 Z" />
+
+    <!-- Natural Block Print Motifs (Muted Sepia/Brown Floral Sprays) -->
+    <!-- Motif Row 1 -->
+    <path
+        android:fillColor="#6E4A35"
+        android:pathData="M60,70 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M66,76 L66,88 M60,82 C64,80 68,80 72,82" />
+    <path
+        android:fillColor="#6E4A35"
+        android:pathData="M98,68 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M104,74 L104,86 M98,80 C102,78 106,78 110,80" />
+
+    <!-- Motif Row 2 -->
+    <path
+        android:fillColor="#6E4A35"
+        android:pathData="M52,106 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M58,112 L58,124 M52,118 C56,116 60,116 64,118" />
+    <path
+        android:fillColor="#6E4A35"
+        android:pathData="M88,102 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M94,108 L94,120 M88,114 C92,112 96,112 100,114" />
+    <path
+        android:fillColor="#6E4A35"
+        android:pathData="M118,100 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0 M123,105 L123,116" />
+
+    <!-- Motif Row 3 -->
+    <path
+        android:fillColor="#6E4A35"
+        android:pathData="M62,138 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M68,144 L68,156 M62,150 C66,148 70,148 74,150" />
+    <path
+        android:fillColor="#6E4A35"
+        android:pathData="M100,134 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 M106,140 L106,152 M100,146 C104,144 108,144 112,146" />
+
+    <!-- Soft Fabric Crease / Fold Lines -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#182C1810"
+        android:strokeWidth="2"
+        android:pathData="M38,90 Q100,94 158,90 M37,130 Q100,135 156,130" />
+</vector>

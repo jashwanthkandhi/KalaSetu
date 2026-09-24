@@ -1,0 +1,1973 @@
+# KalaSetu MVP — Implementation Plan
+
+> **Stack:** SIH26090 Final · **Source docs:** research + PRD + TechDesign (updated) + README
+> **Tagline:** From Voice and Vision to Marketplace in Seconds
+> **Platform:** Flutter (Android) · **Timeline:** 48-hour SIH MVP
+
+---
+
+## What We Are Building
+
+```
+Artisan opens app → selects language → takes photo → speaks in Telugu/Hindi
+                          ↓
+         (offline? → Hive queue → uploads when signal returns)
+                          ↓
+Backend: Whisper STT → Qwen-Image-Edit (NVIDIA NIM) → MobileNetV3 category → Nemotron listing → SerpApi price
+                          ↓
+Artisan reviews & edits AI-generated card → confirms → saved to Supabase catalog
+```
+
+Everything outside this flow is out of scope for the 48-hour MVP (no marketplace, no payments, no ONDC, no n8n automation).
+
+---
+
+## Open Decision — Resolve Before Build
+
+> [!IMPORTANT]
+> **TTS Vendor** — pick one before starting Phase 3, do not change mid-hackathon.
+>
+> | Option | When to pick |
+> |---|---|
+> | **Google Cloud TTS** | You already have a GCP project with credits |
+> | **Sarvam Bulbul** | You have confirmed API access + tested voice quality for Telugu/Hindi |
+
+> [!NOTE]
+> **LLM Provider** — **Nemotron** via NVIDIA NIM API (OpenAI-compatible). Model ID verified from NIM console before coding. Access via `https://integrate.api.nvidia.com/v1`.
+
+> [!NOTE]
+> **Image Enhancement** — **Qwen-Image-Edit via NVIDIA NIM**. This is an image-editing model (not a VLM/chat model). Model ID verified from NIM console before coding. Auth: same `NVIDIA_NIM_API_KEY`. The appropriate NVIDIA NIM image-editing API format must be used — not the chat completions endpoint.
+
+> [!IMPORTANT]
+> **TTS** — P1 only. Choose Google Cloud TTS or Sarvam Bulbul before Phase 3. This decision must NOT block P0 implementation.
+
+
+---
+
+## UI/UX Visual Design Specification
+
+> **Purpose:** This section defines how KalaSetu should look, feel, and behave visually. It does not change any functionality, backend architecture, AI pipeline, or tech stack decisions. The attached reference image is the visual benchmark for QUALITY and DESIGN DIRECTION only — not a source of screens or features.
+>
+> **Design philosophy:** *"Your craft deserves a bigger world."* Technology stays invisible. The artisan stays in control. Every screen must feel like part of one cohesive, professional product — not a college CRUD app or a basic Flutter demo.
+
+---
+
+### 1. Overall Design Direction
+
+KalaSetu must feel like a **premium, production-quality mobile application** — comparable in visual polish to a professionally designed modern marketplace app.
+
+**What it must feel like:**
+- Warm, trustworthy, artisan-focused
+- Minimal — only what is necessary
+- Modern — clean, spacious, confident
+- Accessible — large targets, readable text, Indic fonts rendered correctly
+
+**What it must NOT feel like:**
+- A basic Flutter prototype
+- A college CRUD application
+- A generic admin dashboard
+- An AI developer tool
+- A collection of unrelated screens
+
+Every screen must share the same palette, spacing, typography, and component language. Consistency is non-negotiable.
+
+---
+
+### 2. Visual Identity
+
+#### Color Palette
+
+| Token | Hex | Role |
+|---|---|---|
+| `colorBackground` | `#F5F0EB` | Warm cream — all screen backgrounds, never white |
+| `colorSurface` | `#FFFFFF` | White — cards, input fields, bottom nav bar |
+| `colorPrimary` | `#C4622D` | Terracotta — primary buttons, active states, mic button, waveform, active nav |
+| `colorSecondary` | `#D4A017` | Saffron/gold — AI suggested price, star accents |
+| `colorText` | `#2C1810` | Deep brown/charcoal — all headings and primary body text |
+| `colorTextMuted` | `#8A7A70` | Warm gray — secondary labels, hints, timestamps, helper text |
+| `colorSuccess` | `#4CAF50` | Soft green — Saved chip, completed processing step, save confirmation |
+| `colorWarning` | `#F59E0B` | Amber — Draft chip, offline queue badge |
+| `colorError` | `#D32F2F` | Muted red — error messages, failed states |
+| `colorBanner` | `#FFF3E0` | Saffron-tint — AI review banner background |
+| `colorBorder` | `#E8DDD5` | Warm light brown — card dividers, chip outlines, unselected language pills |
+| `colorOverlay` | `#2C181066` | Semi-transparent deep brown — image overlays, modal backdrops |
+
+**Rules:**
+- Never use pure black or pure white for text
+- Maximum 3 colors visible on any single screen at once
+- No excessive gradients — flat fills only, exception: very subtle cream-to-transparent hero fade on onboarding
+- Green is reserved exclusively for success/positive states
+- Red is reserved exclusively for error states
+
+---
+
+### 3. Typography
+
+**Font:** Noto Sans (bundled in assets) — covers Latin, Devanagari (Hindi), and Telugu scripts in one family. Do not mix font families.
+
+#### Type Scale
+
+| Style name | Size | Weight | Line height | Usage |
+|---|---|---|---|---|
+| `displayL` | 34sp | Bold (700) | 1.15 | Onboarding headline |
+| `headingL` | 24sp | Bold (700) | 1.2 | Screen titles (My Catalog) |
+| `headingM` | 20sp | SemiBold (600) | 1.25 | Card titles, listing title in Review |
+| `headingS` | 17sp | SemiBold (600) | 1.3 | Section labels, nav bar title |
+| `bodyL` | 15sp | Regular (400) | 1.5 | Descriptions, body copy |
+| `bodyM` | 13sp | Regular (400) | 1.5 | Secondary copy, hints, timestamps |
+| `label` | 11sp | Medium (500) | 1.3 | Status chips, tags, category pills |
+| `price` | 22sp | Bold (700) | 1.0 | Price values (INR) |
+| `priceMuted` | 16sp | Regular (400) | 1.0 | AI Suggested price label |
+| `button` | 16sp | SemiBold (600) | 1.0 | Primary/secondary button labels |
+| `micro` | 11sp | Regular (400) | 1.4 | Sub-button hints, footnotes |
+
+**Indic rendering rules:**
+- `NotoSansTelugu-Regular.ttf` and `NotoSansTelugu-Bold.ttf` bundled for Telugu
+- `NotoSansDevanagari-Regular.ttf` and `NotoSansDevanagari-Bold.ttf` bundled for Hindi
+- Language selector pills must use the correct script for each language (`తెలుగు`, `हिंदी`, `English`)
+- Never render Indic text with a Latin-only font — it will show squares
+
+---
+
+### 4. Layout
+
+#### Spacing System
+
+Base unit: **4dp**
+
+| Token | Value | Usage |
+|---|---|---|
+| `space4` | 4dp | Icon-to-label gap, chip internal padding |
+| `space8` | 8dp | Between small elements within a card |
+| `space12` | 12dp | Card grid gap, chip row gap |
+| `space16` | 16dp | Standard internal card padding, section gap |
+| `space20` | 20dp | Card-to-card vertical gap |
+| `space24` | 24dp | Screen horizontal padding (left + right) |
+| `space32` | 32dp | Between major sections |
+| `space48` | 48dp | Large section breaks |
+
+**Screen padding:** 24dp left and right on all screens. No full-bleed content except images and the onboarding hero visual.
+
+#### Border Radius
+
+| Element | Radius |
+|---|---|
+| Cards (large) | 16dp |
+| Cards (small) | 12dp |
+| Primary button | 14dp |
+| Secondary button | 14dp |
+| Chips / pills | 100dp (fully rounded) |
+| Input fields | 10dp |
+| Image containers | 16dp |
+| Banners / alerts | 10dp |
+| Bottom nav bar | 0dp (flush to screen edge) |
+
+#### Elevation (Shadows)
+
+Use shadow instead of borders to separate cards from the cream background.
+
+```
+Card shadow:   blurRadius=12, offset=(0,4), color=#2C1810 at 6% opacity
+Sticky bottom: blurRadius=16, offset=(0,-4), color=#2C1810 at 8% opacity
+```
+
+No Material elevation values — use explicit `BoxShadow` definitions.
+
+---
+
+### 5. Reusable Components
+
+Every component below must be implemented as a separate Flutter widget in `lib/shared/widgets/`. No duplicating layout logic inline across screens.
+
+#### `PrimaryButton`
+- Height: 56dp, full-width with 24dp horizontal screen padding
+- Background: `colorPrimary` (#C4622D), border radius 14dp
+- Label: `button` type style, white
+- Press feedback: `AnimatedScale` to 0.97, 100ms `Curves.easeOut`
+- Disabled state: 40% opacity, no press feedback
+- Loading state: replaces label with 20dp white `CircularProgressIndicator`
+
+#### `SecondaryButton`
+- Height: 48dp, full-width
+- Background: transparent, border: 1.5dp `colorPrimary`, border radius 14dp
+- Label: `button` type style, `colorPrimary`
+- Use for: Re-record, Retry, secondary actions
+
+#### `AppHeader`
+- Back arrow (line icon, `colorText`, 48dp tap target) — left
+- Screen title (`headingS`, `colorText`) — center
+- Optional trailing widget (badge, icon button) — right
+- Background: `colorBackground` (same as screen — no elevation)
+- Consistent 56dp height
+
+#### `LanguageSelector`
+- Three pill buttons: `తెలుగు` | `हिंदी` | `English`
+- Selected: `colorPrimary` fill, white label text, 0dp border
+- Unselected: `colorSurface` fill, `colorBorder` 1dp border, `colorTextMuted` label
+- Pill height: 40dp, border radius 100dp
+- Tap: `AnimatedContainer` color switch, 150ms
+- Persisted to `SharedPreferences`
+
+#### `ProductCard`
+- White surface, 16dp border radius, card shadow
+- Square image top: `AspectRatio(1:1)`, `CachedNetworkImage`, `BoxFit.cover`, 16dp radius top corners only
+- Content padding: 10dp all sides
+- Title: `bodyL` bold, `colorText`, max 2 lines, overflow ellipsis
+- Category: `bodyM`, `colorTextMuted`, 1 line
+- Price row: `price` style `colorText` left + `StatusChip` right, vertically centered
+
+#### `StatusChip`
+- Height: 22dp, padding: 6dp horizontal, border radius 100dp
+- Saved: `colorSuccess` border (1dp) + text
+- Draft: `colorWarning` border + text
+- Pending Upload: `colorWarning` fill at 20% + `colorWarning` text + wifi-off icon 12dp
+- Queued: `colorPrimary` border + "Queued" text + upload icon 12dp
+- Label: `label` type style
+
+#### `ProgressStep`
+- Row: 56dp height, 20dp horizontal padding, thin `colorBorder` divider below (except last)
+- Left icon 32dp circle:
+  - Completed → filled `colorSuccess`, white checkmark
+  - Active → filled `colorPrimary`, white animated spinner
+  - Pending → outlined `colorBorder`, no fill
+- Center: step label `bodyL`, `colorText` bold when active, `colorTextMuted` when done/pending
+- Right: animated `...` dots in `colorPrimary` when active, nothing otherwise
+
+#### `LoadingIndicator`
+- Three dots, 8dp diameter each, 6dp gap
+- Color: `colorPrimary`
+- Animation: sequential opacity pulse, 400ms each, offset 133ms between dots
+
+#### `EmptyState`
+- Centered column
+- Illustration: simple line-art craft icon (SVG), 120dp, `colorBorder` tint
+- Title: `headingM`, `colorText`
+- Body: `bodyM`, `colorTextMuted`, centered, max 2 lines
+- Optional CTA: `PrimaryButton`
+- Example — empty catalog: "Your catalog is empty" / "Create your first listing and start selling." / [Create Listing]
+
+#### `ErrorState`
+- Centered column
+- Icon: exclamation in circle, `colorError` tint, 64dp
+- Title: `headingS`, `colorText` — artisan-friendly, never expose technical errors
+- Body: `bodyM`, `colorTextMuted`
+- `RetryButton` below
+
+#### `RetryButton`
+- `SecondaryButton` variant, label "Try Again", arrow-rotate icon left
+- Always visible when an error has occurred — never leave user stuck
+
+#### `VoiceRecorderButton`
+- Circular, 96dp diameter, `colorPrimary` fill, white mic icon 40dp
+- Idle state: solid circle, no rings
+- Recording state: 3 concentric rings — `colorPrimary` at 15%, 10%, 5% opacity, radii 60/72/84dp — animated `RepeatAnimation` pulse, 1200ms
+- Stop state: square stop icon replaces mic, same circle
+
+#### `ImagePreviewCard`
+- White card, 16dp radius, card shadow
+- Image: `CachedNetworkImage`, `BoxFit.cover`, 4:3 aspect ratio for review / 1:1 for capture zone
+- Placeholder: cream background + camera icon `colorBorder` centered
+- Error fallback: cream background + broken image icon + "Couldn't load image" `bodyM`
+- Optional "Edit" pill overlay: top-right, white surface, pencil icon + "Edit" label, 28dp height
+
+#### `PriceBadge`
+- AI suggested: `colorSecondary` (#D4A017) text, `priceMuted` label above
+- Editable (Your Price): `TextFormField` with terracotta underline, `price` type style, `colorText`
+- INR symbol: always prefix `₹` before the value, non-editable
+
+#### `TagChip`
+- Outlined pill, `colorBorder` 1dp border, `colorText` label, `label` type style
+- Padding: 8dp horizontal, 4dp vertical, border radius 100dp
+- Tap to edit: opens bottom sheet text input
+
+#### `BottomActionBar`
+- Fixed bottom, white surface, top shadow (see elevation spec)
+- Contains: `PrimaryButton` + optional microtext below button
+- Height: 96dp (button + padding + safe area inset)
+- Safe area aware (`SafeArea`)
+
+---
+
+### 6. Onboarding Screen
+
+**Goal:** First impression. Warm, editorial, trustworthy.
+
+**Layout:**
+- Full `colorBackground` (#F5F0EB) screen — no status bar color change
+- `Skip` link: top-right, `bodyM`, `colorTextMuted`, 48dp tap area
+- `KalaSetu` wordmark: centered, `headingM` weight, `colorText`, top 20% of screen
+- Hero craft visual: terracotta handcraft product floating on cream, 240dp wide, centered — no background shape, just the object with a very soft drop shadow beneath it
+- Headline: `displayL`, `colorText`, left-aligned, 24dp left padding, 3 lines max — "Your Craft Deserves a Bigger World"
+- Supporting text: `bodyL`, `colorTextMuted`, left-aligned — "Create. Share. Grow."
+- `LanguageSelector` — 32dp below supporting text
+- `PrimaryButton` "Get Started →" — 24dp below language selector
+- Page indicator dots — centered, 24dp below button, active = `colorPrimary` 8dp, inactive = `colorBorder` 6dp
+
+**Animation:** On page load, hero image fades in with 300ms `FadeTransition` + 20dp upward `SlideTransition`.
+
+---
+
+### 7. Capture Screen
+
+**Goal:** One dominant action. Calm and focused.
+
+**Layout:**
+- `AppHeader`: back arrow, "Add Product", trailing `LanguageSelector` pill (current selection only, tappable to change)
+- Network status badge: top-right below header — green dot + "Online" or amber dot + "Offline" in `bodyM`
+- `ImagePreviewCard` (photo zone): full-width, dashed inner `colorBorder` border when empty, camera icon + "Tap to capture product photo" hint. Shows real photo when captured, with retake icon overlay.
+- Spacer: 32dp
+- `VoiceRecorderButton`: horizontally centered, dominant visual
+- Voice waveform: `colorPrimary` bars, 24 bars, animated — only visible when recording
+- Recording timer: `headingS` bold, `colorText`, centered — e.g. "0:12"
+- Re-record / Clear link: `bodyM`, `colorTextMuted`, underline — only visible after recording
+- Instruction text: `bodyM`, `colorTextMuted`, centered — "Speak about your product in your language"
+- Offline banner (conditional): `colorWarning` tint banner, wifi-off icon, "No connection — listing will upload when online"
+- `BottomActionBar`: `PrimaryButton` "Generate Listing →", microtext "We'll create your listing from photo and voice"
+
+**Validation:** Both photo and audio must be captured before "Generate Listing" is enabled. Disabled state is clearly communicated.
+
+---
+
+### 8. Processing Screen
+
+**Goal:** Visually impressive wait experience. Artisan must feel something real is happening.
+
+**Layout:**
+- No `AppHeader`, no back button — screen is non-dismissible during active processing
+- `KalaSetu` wordmark: centered, top, `headingM`
+- `ImagePreviewCard`: full-width, shows the captured product photo as AI works on it. Below the image inside the card: `"Creating your listing..."` italic `bodyM` `colorTextMuted`
+- Spacer: 28dp
+- Progress card: white card, card shadow, 4 × `ProgressStep` rows
+  1. Understanding your voice
+  2. Enhancing your product photo
+  3. Identifying your craft
+  4. Creating your listing
+- `LoadingIndicator` (3-dot pulse): centered below card, `colorPrimary`
+- "This usually takes about 20 seconds" — `bodyM`, `colorTextMuted`, centered
+
+**States:**
+- **Normal:** steps animate through sequentially
+- **Failed:** progress card replaced by `ErrorState` — artisan-friendly message + `RetryButton` that navigates back to Capture
+- No fake percentage bars — only the 4 defined stages, each either pending / active / done
+
+---
+
+### 9. Review & Edit Listing Screen
+
+**Goal:** The most important screen. Demonstrates KalaSetu's value. Artisan must feel in control.
+
+**Layout (scrollable):**
+- `AppHeader`: back arrow, "Review Listing", trailing `StatusChip` "AI Generated" (terracotta outline)
+- AI banner: `colorBanner` (#FFF3E0) strip, ℹ️ icon, "Review and edit before saving — AI generated this listing" — `bodyM`, `colorPrimary` text
+- `ImagePreviewCard`: full-width, 4:3 ratio, enhanced product image, "Edit Photo" pill overlay top-right
+- White detail card (all fields inside one card, thin `colorBorder` dividers between rows):
+  - **Title** — `label` "TITLE" `colorPrimary` uppercase, `headingM` `colorText` value, pencil icon right → tapping opens inline edit
+  - **Description** — `label` "DESCRIPTION", `bodyL` `colorText` value (2 lines then "Show more"), pencil icon right
+  - **Category** — `label` "CATEGORY", `TagChip` value
+  - **Tags** — `label` "TAGS", row of `TagChip` items, tappable to edit
+  - **AI Suggested Price** — `label` "AI SUGGESTED" `colorTextMuted`, `price` value in `colorSecondary` (#D4A017)
+  - **Your Price** — `label` "YOUR PRICE", `PriceBadge` editable field with `colorPrimary` underline
+- Voice transcript accordion: "🎙 View original voice note" `bodyM` `colorPrimary` → expands to show transcript text in `bodyM` `colorTextMuted`
+- "🔊 Read Aloud" text button: `colorPrimary`, speaker icon, `bodyM` — calls TTS endpoint (P1)
+- `BottomActionBar`: `PrimaryButton` "Save Listing", microtext "Your craft, your decision"
+
+**Artisan control messaging:**
+- The AI Generated badge and banner communicate that AI created the content
+- All fields are editable — the artisan has complete final authority
+- The "Your Price" field clearly distinguishes the artisan's price from AI's suggestion
+
+---
+
+### 10. My Catalog Screen
+
+**Goal:** Artisan's personal professional showcase. Polished and motivating.
+
+**Layout:**
+- No `AppHeader` — this is the home tab, use a page header instead
+- Page header: "My Catalog" `headingL` `colorText` left, avatar circle (terracotta initials) right
+- Subtitle: "Your handcrafted collection" `bodyM` `colorTextMuted`
+- 2-column `GridView` — 12dp gap, 24dp outer padding
+  - Each cell: `ProductCard`
+  - Last cell (when < max listings): dashed border `colorBorder`, "+" `colorPrimary` icon centered, "New Listing" `bodyM` `colorPrimary` below — navigates to Capture
+- Bottom nav: 2 tabs only (MVP scope — no Settings screen)
+  - Capture — camera icon
+  - Catalog — grid icon (active, `colorPrimary` fill + label)
+  - Active label: `colorPrimary`, active icon: filled, inactive: `colorTextMuted` outline
+  - Language preference is changed via the `LanguageSelector` component on the Capture screen — no separate Settings screen needed
+- Active dot: 4dp `colorPrimary` circle below active icon
+
+**Empty state (first launch):**
+- `EmptyState` widget: craft illustration, "Your catalog is empty", "Tap the + to create your first listing.", `PrimaryButton` "Create Listing"
+
+**Pending Upload state:**
+- Products queued offline show `StatusChip` "Pending Upload" (amber) in the card
+- On reconnect, chip changes to `StatusChip` "Uploading..." with a tiny `CircularProgressIndicator`, then "Saved" on success
+
+---
+
+### 11. Navigation
+
+**Primary user flow (linear):**
+```
+Onboarding → Capture → Processing → Review & Edit → Catalog
+```
+
+**Return flows:**
+- Processing failure → back to Capture (retry)
+- Review → back to Capture (re-do)
+- Save success → forward to Catalog (never back-stack to Review)
+
+**Bottom nav** (visible on Capture and Catalog only — 2 tabs total):
+- Capture tab
+- Catalog tab
+- **No Settings tab** — language selection is handled by the `LanguageSelector` on the Capture screen (persisted via `SharedPreferences`). Tutorial replay is P1/deferred.
+- Bottom nav NOT shown on: Onboarding, Processing, Review
+
+**Navigation rules:**
+- No drawer, no hamburger menu
+- No more than 2 levels of navigation depth
+- Back arrow always visible unless on Onboarding or Processing (non-dismissible)
+- `go_router` manages all routing — no direct `Navigator.push` calls
+
+---
+
+### 12. Interaction States
+
+Every interactive element and every data-loading scenario must have a defined visual state. No screen may be left in an undefined or blank state.
+
+| State | Visual treatment |
+|---|---|
+| **Loading** | `LoadingIndicator` (3-dot pulse) centered on `colorBackground`, or inline spinner inside button |
+| **Success** | `ScaleTransition` green checkmark overlay, 400ms, then auto-navigate |
+| **Error** | `ErrorState` widget with artisan-friendly message + `RetryButton` |
+| **Retry** | `RetryButton` always visible after error — never leave user stuck |
+| **Empty** | `EmptyState` widget — never show a blank white/cream screen |
+| **Offline** | Amber banner on Capture, "Pending Upload" chip on catalog cards |
+| **Queued** | `StatusChip` "Queued" on catalog card while in Hive queue |
+| **Uploading** | `StatusChip` "Uploading..." + mini `CircularProgressIndicator` |
+| **Saved** | `StatusChip` "Saved" green, plus success animation on save |
+| **Disabled** | 40% opacity on button, no tap feedback |
+| **Validation error** | Red underline on input + `bodyM` `colorError` inline message below field |
+
+**Duplicate submission prevention:** "Generate Listing" and "Save Listing" buttons must be set to disabled + loading state immediately on first tap. Do not allow double-submission.
+
+---
+
+### 13. Animations
+
+All animations must use `Curves.easeOut`. No spring physics. Keep animations lightweight and performant on mid-range Android devices (Snapdragon 400-series).
+
+| Animation | Trigger | Widget | Duration |
+|---|---|---|---|
+| Screen enter | Route push | `FadeTransition` + `SlideTransition` (20dp up) | 250ms |
+| Button press | Tap down | `AnimatedScale` to 0.97 | 100ms |
+| Mic ring pulse | Recording active | `AnimationController` repeat, opacity 0.15→0.05 | 1200ms |
+| Voice waveform bars | Recording active | `AnimationController` + `sin()` phase offset per bar | 60fps |
+| Processing step done | Step completes | `AnimatedContainer` fill + `FadeIn` checkmark | 300ms |
+| Success save | Save confirmed | `ScaleTransition` + green overlay | 400ms |
+| Catalog card entrance | Grid build | Staggered `FadeTransition` + `SlideTransition`, 50ms offset | 200ms |
+| Image crossfade (Review) | Original ↔ Enhanced toggle | `AnimatedCrossFade` | 300ms |
+| Language selector switch | Pill tap | `AnimatedContainer` color | 150ms |
+
+**Rules:**
+- No Lottie files for core UI — only for onboarding illustration (one-time, small file)
+- Never block user interaction with an animation
+- Reduce animations if `MediaQuery.disableAnimations` is true
+
+---
+
+### 14. Error UX
+
+Users must never see technical errors. Every backend failure must be mapped to a simple, artisan-friendly message.
+
+| Backend / system error | User-facing message |
+|---|---|
+| STT failed (Whisper + GCloud both fail) | "We couldn't understand the recording. Please try speaking again." |
+| Image enhancement failed (Qwen) | "Photo enhancement didn't work. Your original photo will be used." (soft warning — not blocking) |
+| Category tagging failed | Silent — LLM infers from transcript, no user message needed |
+| LLM listing generation failed | "Listing couldn't be created. Please try again." |
+| SerpApi pricing failed | Silent — cost-plus fallback used, no user message |
+| Supabase save failed | "Listing couldn't be saved. Please try again." + `RetryButton` |
+| No network | "You're offline. Your listing will upload when you're back online." |
+| File too large | "Your photo is a bit large. We'll compress it before uploading." |
+| Timeout | "This is taking longer than usual. Please try again." |
+
+**Rules:**
+- Never show stack traces, HTTP codes, API error messages, or Python errors
+- Never use the word "error" alone — always add context + next action
+- Always offer a recovery action (retry, re-record, go back)
+
+---
+
+### 15. Accessibility
+
+| Requirement | Spec |
+|---|---|
+| Minimum touch target | 48dp × 48dp for all interactive elements |
+| Font sizes | Minimum 11sp, scale with system font size (`textScaleFactor`) |
+| Contrast | All text on backgrounds meets WCAG AA (4.5:1 for body, 3:1 for large) |
+| Icon labels | Every icon has a text label or `Semantics(label:)` for screen readers |
+| Color-only communication | Never use color as the only indicator — always pair with icon or text |
+| Indic fonts | Noto Sans Telugu and Devanagari bundled — no fallback to system fonts |
+| Screen sizes | Tested on 5.0", 6.0", 6.7" screens — no overflow, no clipped text |
+| Tap spacing | Adjacent buttons separated by minimum 8dp |
+| Error messages | Inline, below the relevant field, not as a toast that disappears |
+
+---
+
+### 16. Performance
+
+| Requirement | Spec |
+|---|---|
+| Image loading | `CachedNetworkImage` everywhere — no raw `Image.network` |
+| Image compression | Compress before upload: max 1200px long edge, JPEG 85% quality |
+| Animations | Use `RepaintBoundary` to isolate animated widgets |
+| Rebuild scope | Use `Consumer` / `ref.watch` on smallest possible widget subtree |
+| API operations | Always show `LoadingIndicator` — never leave screen unresponsive |
+| Offline list | Hive box reads are synchronous — no async gap on catalog load |
+| Waveform | `CustomPainter` only — no `ListView` of animated containers |
+| Font assets | Preload Noto Sans variants in `pubspec.yaml` — no FOUT (flash of unstyled text) |
+
+---
+
+### 17. Visual Benchmark
+
+> **The attached reference image is the visual benchmark for the LEVEL OF UI POLISH — not the source of functionality.**
+
+The final KalaSetu application must match the reference in:
+
+| Dimension | Target |
+|---|---|
+| **Overall feel** | Premium, trustworthy, production-quality — not a prototype |
+| **Spacing quality** | Generous, consistent, never cramped |
+| **Typography quality** | Clear hierarchy, correct Indic rendering, no overflow |
+| **Product presentation** | Large, beautiful, centered, professionally composed |
+| **Component consistency** | Every screen uses the same tokens, same radius, same shadow |
+| **Interaction polish** | All buttons, transitions, and feedback feel intentional and smooth |
+| **Empty/error/loading states** | Beautiful, artisan-friendly, never blank or technical |
+
+**What must NOT be copied from the reference:**
+- Marketplace / Discover screen
+- Orders screen
+- Earnings screen
+- Profile / settings drawer
+- Search functionality
+- Any screens beyond the 5 approved KalaSetu MVP screens
+
+**What must be matched from the reference:**
+- That same level of visual confidence, spacing generosity, and polish — applied to KalaSetu's own 5 screens
+
+
+---
+
+## Proposed Changes
+
+
+---
+
+### Component 1 — Supabase Data Layer
+
+
+
+
+
+
+#### [NEW] `supabase/schema.sql`
+
+```sql
+CREATE TABLE artisans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT,
+    phone TEXT UNIQUE,
+    preferred_language TEXT DEFAULT 'te',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    artisan_id UUID REFERENCES artisans(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL,
+    tags TEXT[] DEFAULT '{}',
+    original_image_url TEXT,
+    enhanced_image_url TEXT,
+    voice_transcript TEXT,
+    suggested_price NUMERIC(10,2),
+    final_price NUMERIC(10,2),
+    status TEXT DEFAULT 'draft',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**Manual steps:**
+1. Run schema in Supabase SQL editor
+2. Create Storage bucket `listing-images` (public read for images, write restricted to backend)
+3. **Enable RLS on `products` — mandatory, even for demo mode** (see TH-9 for required policies)
+
+---
+
+### Component 2 — FastAPI Backend
+
+#### [NEW] `backend/requirements.txt`
+
+```
+fastapi
+uvicorn[standard]
+python-multipart
+openai-whisper
+google-cloud-speech          # STT fallback
+torch torchvision            # MobileNetV3-Small
+Pillow
+openai                       # OpenAI-compatible SDK — used for NVIDIA NIM (LLM + image)
+supabase
+python-dotenv
+pydantic-settings
+serpapi                      # SerpApi Python client
+httpx
+pytest
+# NOTE: google-generativeai is a one-time dev dependency for ARB batch translation only
+```
+
+#### [NEW] `backend/.env.example`
+
+```
+# Supabase
+SUPABASE_URL=
+SUPABASE_KEY=
+
+# NVIDIA NIM — LLM + Image share the same API key
+NVIDIA_NIM_API_KEY=
+NVIDIA_NIM_BASE_URL=https://integrate.api.nvidia.com/v1
+NEMOTRON_MODEL=          # VERIFY FROM build.nvidia.com BEFORE CODING
+QWEN_IMAGE_MODEL=        # VERIFY FROM build.nvidia.com BEFORE CODING
+
+# STT
+WHISPER_MODEL=base
+GOOGLE_APPLICATION_CREDENTIALS=
+
+# Pricing
+SERPAPI_KEY=
+
+# TTS (P1 — decide before Phase 3)
+TTS_PROVIDER=google      # google | sarvam
+SARVAM_API_KEY=
+
+# Development
+MOCK_MODE=false
+LOG_LEVEL=INFO
+```
+
+---
+
+#### [NEW] `backend/app/main.py`
+- FastAPI app init
+- CORS middleware (Flutter app origin)
+- Routers: `health`, `listings`, `tts` (P1)
+
+#### [NEW] `backend/app/config.py`
+- `pydantic-settings` class loading all env vars
+- Exported as singleton `settings`
+
+#### [NEW] `backend/app/routes/health.py`
+```
+GET /health → {"status": "ok", "model": "whisper-base", "stack": "SIH26090"}
+```
+
+---
+
+#### [NEW] `backend/app/routes/listings.py`
+
+**`POST /api/v1/listings/process`** — multipart: `photo`, `audio`, `language`
+
+Pipeline (sequential):
+1. Validate file types + sizes
+2. Save to temp storage
+3. `stt_service.transcribe(audio, language)` → transcript
+4. `image_service.enhance(photo)` → enhanced_image_url
+5. `category_service.predict(photo)` → category
+6. `llm_service.generate(transcript, category)` → listing JSON
+7. `pricing_service.suggest(category, tags)` → price_inr
+8. Return full response
+
+**`POST /api/v1/listings/confirm`** — JSON body → inserts to Supabase `products` table
+
+---
+
+#### [NEW] `backend/app/routes/tts.py` *(P1)*
+```
+POST /api/v1/tts
+Body: {"text": "...", "language": "te"}
+Response: audio bytes (MP3/WAV)
+```
+Calls Google Cloud TTS or Sarvam Bulbul based on `TTS_PROVIDER` env var.
+
+---
+
+#### [NEW] `backend/app/services/stt_service.py`
+
+```python
+# Primary: Whisper
+transcript = whisper.load_model(settings.WHISPER_MODEL).transcribe(audio_path, language=lang)
+
+# Fallback: Google Cloud Speech-to-Text
+# Triggered if Whisper raises an exception or exceeds 10-second timeout
+client = speech.SpeechClient()
+response = client.recognize(config=RecognitionConfig(language_code=lang_bcp47), audio=audio)
+```
+
+Returns `{"text": "...", "source": "whisper" | "google_cloud"}`
+
+---
+
+#### [NEW] `backend/app/services/image_service.py`
+
+```python
+# Provider: NVIDIA NIM — Qwen-Image-Edit
+# Model ID: settings.QWEN_IMAGE_MODEL (verified from build.nvidia.com before coding)
+# Auth: settings.NVIDIA_NIM_API_KEY / settings.NVIDIA_NIM_BASE_URL
+#
+# IMPORTANT: Qwen-Image-Edit is a dedicated IMAGE EDITING model.
+# Use the NVIDIA NIM image-editing API endpoint/format for this model —
+# NOT the chat completions endpoint used by Nemotron.
+# Verify the correct request format from the NIM model card at build.nvidia.com.
+#
+# Edit instruction (send to model):
+#   - Remove or replace any distracting background
+#   - Place the product on a clean white or light neutral background
+#   - Improve lighting to clearly show product details and texture
+#   - Preserve the actual product appearance — do not modify or invent product details
+#
+# Input:  raw product image bytes (JPEG/PNG, compressed to ≤5 MB, max 1920px)
+# Output: enhanced image bytes → compress if needed → upload to
+#         Supabase Storage listing-images/enhanced/<uuid>.jpg → return public URL
+#
+# Fallback (any exception — timeout, API error, parse error):
+#   - Log warning with request_id
+#   - Return original_image_url (already uploaded)
+#   - Set image_warning=True in pipeline response
+#   - NEVER raise to the pipeline orchestrator
+```
+
+Fallback: if Qwen-Image-Edit call fails, return original image URL with `image_warning: true`. Pipeline continues.
+
+---
+
+#### [NEW] `backend/app/services/category_service.py`
+
+```python
+# MobileNetV3-Small fine-tuned on Indian craft categories
+# Categories: Pottery, Textiles, Bamboo, Wood, Jewellery, Paintings, Leather, Other
+# Input: image bytes
+# Output: {"category": "Pottery", "confidence": 0.87}
+```
+
+If confidence < 0.5, returns `{"category": "Other", "confidence": ...}` — LLM will infer from transcript.
+
+---
+
+#### [NEW] `backend/app/services/llm_service.py`
+
+System prompt (from TechDesign §8.3):
+```
+You are KalaSetu, an AI catalog assistant for Indian artisans.
+Convert the artisan's spoken description into a professional English product listing.
+Use the transcript and predicted category to generate a structured listing.
+Return ONLY valid JSON: {title, description, category, tags[], suggested_price}
+Rules: realistic INR pricing, no invented details, searchable English.
+```
+
+- Calls **Nemotron** via NVIDIA NIM API — model ID read from `settings.NEMOTRON_MODEL` (verified at build.nvidia.com)
+- Uses `openai` Python SDK pointed at `settings.NVIDIA_NIM_BASE_URL`
+- Forces JSON output via system prompt (structured output)
+- Validates response with Pydantic `ListingSchema` — retry once with stricter prompt on malformed output
+
+---
+
+#### [NEW] `backend/app/services/pricing_service.py`
+
+```python
+# 1. Call SerpApi Google Shopping: search "{category} handmade India"
+# 2. Extract price range from top 5 results
+# 3. Return median as suggested_price
+# Fallback (if SerpApi fails): cost-plus heuristic
+#   - materials estimate + labour (₹150/hr × estimated_hours) × 1.3 margin
+# Guard: min ₹99, max ₹9,999 for MVP
+```
+
+---
+
+#### [NEW] `backend/app/utils/file_utils.py`
+- `save_temp(bytes, suffix)` → temp path
+- `compress_image(bytes, max_mb=5)` → compressed bytes
+- `cleanup(path)` → removes temp file
+
+#### [NEW] `backend/app/utils/validation.py`
+- Image: `image/jpeg`, `image/png` · max 10 MB
+- Audio: `audio/wav`, `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/m4a` · max 5 MB
+
+---
+
+### Component 3 — Flutter App (5 Screens)
+
+#### Setup: `pubspec.yaml` dependencies
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.19.0
+  go_router: ^13.0.0
+  riverpod: ^2.5.0
+  flutter_riverpod: ^2.5.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  connectivity_plus: ^6.0.0
+  shared_preferences: ^2.2.0
+  lottie: ^3.1.0              # or video_player
+  dio: ^5.4.0
+  image_picker: ^1.0.7
+  record: ^5.1.0              # audio recording
+  audioplayers: ^6.0.0        # TTS playback
+  cached_network_image: ^3.3.0
+  supabase_flutter: ^2.3.0
+
+flutter:
+  generate: true              # enables ARB localizations
+  assets:
+    - assets/animations/
+    - assets/fonts/
+  fonts:
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSansTelugu-Regular.ttf
+        - asset: assets/fonts/NotoSansDevanagari-Regular.ttf
+```
+
+---
+
+#### Screen 0 — Onboarding (`lib/features/onboarding/onboarding_page.dart`)
+
+- Shown once (checked via `SharedPreferences` key `tutorial_seen`)
+- Silent Lottie animation showing the 3-step flow
+- Language selector: Telugu / Hindi / English
+- Selected language saved to `SharedPreferences` + app locale updated
+- CTA: "Start" → navigates to Capture
+
+---
+
+#### Screen 1 — Capture (`lib/features/capture/capture_page.dart`)
+
+- Language selector (persists across sessions)
+- Camera button → `image_picker` → `ImagePicker().pickImage()`
+- Microphone button → `record` package → records to `.m4a`
+- Offline indicator: `connectivity_plus` stream → shows "Offline — will upload when connected" banner
+- "Generate Listing" CTA:
+  - If online: call `api_service.processListing(photo, audio, lang)` → navigate to Processing
+  - If offline: serialize to Hive box → show "Queued" badge → navigate to Catalog
+
+Component: `lib/features/capture/capture_form.dart`
+
+---
+
+#### Screen 2 — Processing (`lib/features/processing/processing_page.dart`)
+
+- 4-step animated stepper (from TechDesign §10):
+  1. Transcribing 🎙️
+  2. Enhancing image 🖼️
+  3. Categorising 🏷️
+  4. Generating listing ✨
+- `AnimatedProgressIndicator` between steps
+- On success: navigate to Review with response data
+- On error: show error message + "Try Again" CTA (returns to Capture)
+
+---
+
+#### Screen 3 — Review & Edit (`lib/features/review/review_page.dart`)
+
+- Enhanced image displayed (original shown as small thumbnail)
+- Editable `TextFormField`s: title, description, category, price (INR)
+- Tags display (chip list, tappable to edit)
+- Voice transcript shown as read-only reference
+- **TTS "Read aloud" button** (P1) — calls `/api/v1/tts` and plays via `audioplayers`
+- "Save Listing" CTA → `api_service.confirmListing(editedData)` → navigate to Catalog
+
+Component: `lib/features/review/listing_preview.dart`
+
+---
+
+#### Screen 4 — Catalog (`lib/features/catalog/catalog_page.dart`)
+
+- Grid of saved product cards (2-column)
+- Each card: cached network image, title, INR price badge, status chip
+- Empty state with illustration + "Create your first listing" CTA
+- Fetches from Supabase `products` table via `supabase_flutter`
+- Offline-queued items shown with "Pending upload" badge
+
+Component: `lib/features/catalog/catalog_grid.dart`
+
+---
+
+#### Core Services
+
+| File | Responsibility |
+|---|---|
+| `lib/core/services/api_service.dart` | `processListing()`, `confirmListing()`, `readAloud()` — typed Dio calls |
+| `lib/core/services/connectivity_service.dart` | `Stream<bool>` from `connectivity_plus`; broadcast to upload queue |
+| `lib/core/services/upload_queue_service.dart` | Listens to connectivity stream; flushes Hive queue FIFO on reconnect |
+| `lib/core/services/tts_service.dart` | Calls `/api/v1/tts`, plays audio bytes via `audioplayers` |
+| `lib/core/storage/hive_boxes.dart` | Box definitions: `offlineQueue`, `draftListings` |
+| `lib/shared/theme/app_theme.dart` | Warm terracotta/saffron palette, large touch targets, Noto Sans fonts |
+
+---
+
+### Component 4 — Localization Pipeline
+
+> Source: TechDesign §8.4 (new section added in SIH26090 update)
+
+**One-time setup steps (before first Flutter build):**
+
+1. Write all UI strings in `lib/l10n/app_en.arb` (English master)
+2. Send `app_en.arb` to LLM (Gemini/GPT) with language targets: Telugu (`te`), Hindi (`hi`)
+3. LLM generates `app_te.arb` and `app_hi.arb` in one batch request
+4. Native speaker proofreads both files — especially craft vocabulary
+5. Add to `pubspec.yaml`: `generate: true` under `flutter:`
+6. Run `flutter gen-l10n` → auto-generates `AppLocalizations` class
+7. Tutorial narration scripts follow the same LLM batch translation pipeline
+
+**Key ARB strings to include:**
+- Capture screen labels and button text
+- Processing step names
+- Error messages (STT failed, image failed, save failed)
+- Catalog empty state text
+- Onboarding narration
+
+---
+
+### Component 5 — Error Handling Matrix
+
+> Source: TechDesign §9 + PRD §7 acceptance criteria
+
+| Failure | Backend response | Flutter behaviour |
+|---|---|---|
+| Whisper STT fails | Try Google Cloud STT fallback | If both fail: `transcription: null` → show "Re-record" prompt |
+| Google Cloud STT fails | `success: false, error: "stt_failed"` | "Could not understand audio, try again" + keep photo |
+| Qwen image enhancement fails | Return original image + `image_warning: true` | Soft warning banner; keep workflow alive |
+| MobileNet category fails | `category: "Other"` | LLM infers from transcript; artisan can edit in Review |
+| LLM malformed JSON | Retry once; if still bad → 500 | "Listing generation failed" + retry CTA |
+| SerpApi unavailable | Cost-plus fallback price | No user-visible error; fallback is transparent |
+| Supabase save fails | 503 | "Save failed — tap to retry" persistent CTA |
+| No network at capture | N/A | Hive queue; "Queued for upload" badge |
+| File too large | 413 + guidance message | "Image too large — we'll compress it" auto-compress |
+
+---
+
+## Full File Tree
+
+```
+sih-project/KalaSetu/
+│
+├── supabase/
+│   └── schema.sql
+│
+├── backend/
+│   ├── .env.example
+│   ├── requirements.txt
+│   └── app/
+│       ├── main.py
+│       ├── config.py
+│       ├── routes/
+│       │   ├── health.py
+│       │   ├── listings.py
+│       │   └── tts.py              ← P1
+│       ├── schemas/
+│       │   ├── listing_request.py
+│       │   └── listing_response.py
+│       ├── services/
+│       │   ├── stt_service.py      ← Whisper + Google Cloud STT fallback
+│       │   ├── image_service.py    ← Qwen-Image-Edit via NVIDIA NIM + Supabase upload
+│       │   ├── category_service.py ← MobileNetV3-Small
+│       │   ├── llm_service.py      ← Nemotron via NVIDIA NIM
+│       │   └── pricing_service.py  ← SerpApi + cost-plus
+│       └── utils/
+│           ├── file_utils.py
+│           └── validation.py
+│
+└── flutter_app/                    ← Flutter project root
+    ├── pubspec.yaml
+    ├── assets/
+    │   ├── animations/             ← Lottie JSON files
+    │   └── fonts/                  ← Noto Sans Indic TTF files
+    └── lib/
+        ├── main.dart
+        ├── app/
+        │   ├── app.dart
+        │   └── router.dart
+        ├── core/
+        │   ├── config/app_config.dart
+        │   ├── services/
+        │   │   ├── api_service.dart
+        │   │   ├── connectivity_service.dart
+        │   │   ├── upload_queue_service.dart
+        │   │   └── tts_service.dart
+        │   ├── storage/hive_boxes.dart
+        │   └── utils/formatters.dart
+        ├── features/
+        │   ├── onboarding/
+        │   │   ├── onboarding_page.dart
+        │   │   └── onboarding_animation.dart
+        │   ├── capture/
+        │   │   ├── capture_page.dart
+        │   │   └── capture_form.dart
+        │   ├── processing/processing_page.dart
+        │   ├── review/
+        │   │   ├── review_page.dart
+        │   │   └── listing_preview.dart
+        │   └── catalog/
+        │       ├── catalog_page.dart
+        │       └── catalog_grid.dart
+        ├── l10n/
+        │   ├── app_en.arb
+        │   ├── app_te.arb
+        │   └── app_hi.arb
+        └── shared/
+            ├── widgets/
+            │   ├── primary_button.dart
+            │   ├── loading_stepper.dart
+            │   └── language_selector.dart
+            └── theme/app_theme.dart
+```
+
+---
+
+## 48-Hour Build Schedule
+
+| Phase | Window | Goal | Key deliverables |
+|---|---|---|---|
+| **Phase 0** | 0–2 h | Infrastructure | Supabase schema + bucket + env setup; GCP service account; SerpApi key; TTS vendor decided |
+| **Phase 1** | 2–8 h | Backend foundation | `main.py`, `health.py`, `config.py`, `validation.py`, `file_utils.py`; backend running on localhost |
+| **Phase 2** | 8–14 h | STT + Image | `stt_service.py` (Whisper + GCloud fallback), `image_service.py` (Qwen-Image-Edit via NVIDIA NIM; verify model ID first) |
+| **Phase 3** | 14–18 h | Category + LLM + Pricing | `category_service.py`, `llm_service.py`, `pricing_service.py`; full `/process` route end-to-end |
+| **Phase 4** | 18–20 h | Confirm + Supabase | `/confirm` route; Supabase DB insert; `/health` route updated |
+| **Phase 5** | 20–32 h | Flutter app (screens 0–3) | Onboarding, Capture, Processing, Review; `api_service.dart` wired; Hive offline queue |
+| **Phase 6** | 32–36 h | Flutter catalog + localization | Catalog screen; ARB files LLM-generated; `flutter gen-l10n`; fonts bundled |
+| **Phase 7** | 36–40 h | Error states + offline | All error banners, retry CTAs, Hive flush logic, connectivity stream |
+| **Phase 8** | 40–48 h | Demo rehearsal + polish | End-to-end run × 3, latency check (<25 s), P1 TTS if time permits, README update |
+
+---
+
+## Verification Plan
+
+### Backend Commands
+
+```bash
+# Install
+cd backend && pip install -r requirements.txt
+
+# Run
+uvicorn app.main:app --reload
+
+# Health check
+curl http://localhost:8000/health
+
+# End-to-end process test
+curl -X POST http://localhost:8000/api/v1/listings/process \
+  -F "photo=@tests/fixtures/terracotta_pot.jpg" \
+  -F "audio=@tests/fixtures/te_description.m4a" \
+  -F "language=te"
+
+# Unit tests
+pytest tests/ -v
+```
+
+### Flutter Commands
+
+```bash
+cd flutter_app
+
+# Get dependencies
+flutter pub get
+
+# Generate localizations
+flutter gen-l10n
+
+# Run on connected Android device
+flutter run
+
+# Widget tests
+flutter test
+```
+
+### Acceptance Criteria (from PRD §7)
+
+**P0 — Must pass before demo:**
+- [ ] Language selector persists across app restarts
+- [ ] Photo capture works on target Android device
+- [ ] Audio recording captures clear Telugu/Hindi speech
+- [ ] Offline capture queues to Hive and uploads on reconnect
+- [ ] `POST /process` completes in ≤25 seconds under normal demo conditions (external API latency may cause higher times; app must handle gracefully)
+- [ ] Whisper transcribes Telugu/Hindi at >85% clarity
+- [ ] Google Cloud STT fallback activates when Whisper fails
+- [ ] Qwen-Image-Edit (NVIDIA NIM) returns enhanced image, or falls back to original with `image_warning: true`
+- [ ] MobileNetV3-Small returns a category (or "Other" gracefully)
+- [ ] LLM returns valid JSON: title, description, category, tags, price
+- [ ] Suggested price is INR numeric (not a string)
+- [ ] SerpApi fallback activates when SerpApi is unavailable
+- [ ] Preview screen loads all generated fields
+- [ ] User can edit title, description, category, price
+- [ ] `POST /confirm` creates a Supabase `products` row
+- [ ] Catalog shows saved listings with image thumbnails
+- [ ] All error states display clear messages with retry CTAs
+- [ ] App does not crash during a full end-to-end demo run
+
+**P1 — Nice to have:**
+- [ ] TTS "Read aloud" button plays listing in selected language
+- [ ] Hindi toggle changes UI language on the fly
+- [ ] Offline queue drains FIFO on reconnect
+
+---
+
+## Key Design Decisions
+
+| Decision | Rationale | Source |
+|---|---|---|
+| Flutter over Stitch | Cross-platform mobile, offline capabilities, Hive/connectivity_plus ecosystem | SIH26090 finalization |
+| Qwen-Image-Edit (NVIDIA NIM) over rembg+PIL | Dedicated image-editing model for background removal + lighting; API-based, no GPU hosting required; fallback to original if service unavailable | SIH26090 finalization |
+| MobileNetV3-Small for category | Lightweight, runs on CPU, fine-tunable on Indian craft datasets | SIH26090 + Research §7 |
+| SerpApi pricing over rule-based | Real market data for fair price suggestions | SIH26090 finalization |
+| Whisper + GCloud STT dual-track | Reliability — no single point of failure on the most critical user-facing step | SIH26090 finalization |
+| Sequential backend pipeline | Predictable latency, easy to debug, fits 25-second target | TechDesign §8 |
+| **Nemotron 3.5 Lightning** for listing generation | Fast NVIDIA NIM inference, Apache 2.0 licensed, OpenAI-compatible API, no vendor lock-in | SIH26090 finalization |
+| `artisan_id` nullable | No auth wall blocks demo; can link later | TechDesign §6 note |
+| LLM batch for ARB translation | One-time cost, consistent terminology, native-speaker proofread step maintains quality | SIH26090 + TechDesign §8.4 |
+| n8n deferred to post-MVP | Keeps 48-hour scope tight; automation is polish, not validation | PRD §5 out-of-scope |
+
+
+---
+
+# Technical Hardening & Implementation Readiness
+
+> **Purpose:** Remove all implementation ambiguity before the 48-hour build begins. Every sub-section below is a binding specification. Implementation agents must not deviate from or reinterpret these decisions.
+>
+> **Scope constraint:** This section adds hardening only. No new features, no architecture changes, no MVP scope expansion.
+
+---
+
+## TH-1. Locked AI Provider Registry
+
+The table below is the **single source of truth**. Do not choose between alternatives at implementation time.
+
+| Service | Primary Provider | Fallback | P1 / Optional |
+|---|---|---|---|
+| Speech-to-Text | **Whisper** (self-hosted, `base` model) | **Google Cloud Speech-to-Text v1** | — |
+| Image Enhancement | **NVIDIA NIM — Qwen-Image-Edit** (model ID verified from NIM console; use image-editing API format) | Original image pass-through (`image_warning: true`) | — |
+| Craft Category | **MobileNetV3-Small** (ImageNet pretrained + heuristic map) | `category = "Other"`, LLM infers | — |
+| LLM Listing | **NVIDIA NIM — Nemotron** (model ID verified from NIM console) | Retry once with strict prompt, then `llm_failed` | — |
+| Market Pricing | **SerpApi** Google Shopping | Cost-plus heuristic (₹99–₹9 999) | — |
+| TTS | — | — | **Google Cloud TTS** or **Sarvam Bulbul** (user decides before Phase 3) |
+| ARB Translation | Any LLM (one-time dev tool — not runtime) | Manual translation | — |
+
+> [!IMPORTANT]
+> The ARB translation LLM is a **one-time development tool** to generate `app_te.arb` / `app_hi.arb`. It may use any available LLM and is **never** called at runtime by the FastAPI backend.
+
+---
+
+## TH-2. NVIDIA NIM / Nemotron — Exact Configuration
+
+### SDK — Correct Package
+
+Use the `openai` Python package pointed at the NIM base URL. **`nvidia-nemotron` is not a real PyPI package — remove it.**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url=settings.NVIDIA_NIM_BASE_URL,   # https://integrate.api.nvidia.com/v1
+    api_key=settings.NVIDIA_NIM_API_KEY,
+)
+```
+
+### Model ID
+
+> [!CAUTION]
+> **The implementation agent must verify the exact model ID before writing any code.**
+> Log in to [https://build.nvidia.com](https://build.nvidia.com) with the user's NVIDIA account. Confirm which Nemotron model is available. Set `NEMOTRON_MODEL` in `.env` to the verified ID. **Never hardcode the model name in source** — always read from `settings.NEMOTRON_MODEL`.
+
+### Request
+
+```python
+response = client.chat.completions.create(
+    model=settings.NEMOTRON_MODEL,
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"Transcript: {transcript}\nCategory hint: {category}"},
+    ],
+    temperature=0.3,
+    max_tokens=512,
+    timeout=20,
+)
+```
+
+### System Prompt (production-locked)
+
+```
+You are KalaSetu, an AI catalog assistant for Indian artisans.
+Convert the artisan's spoken description into a professional English product listing.
+Return ONLY a valid JSON object with these exact keys:
+{
+  "title": "string (max 80 chars)",
+  "description": "string (max 400 chars)",
+  "category": "one of: Pottery, Textiles, Bamboo, Wood, Jewellery, Paintings, Leather, Other",
+  "tags": ["string"],
+  "suggested_price": number
+}
+Rules: suggested_price MUST be a number (not a string), INR value 50–50000.
+Do not invent details not in the transcript. No markdown outside the JSON.
+```
+
+### Response Validation (Pydantic)
+
+```python
+from pydantic import BaseModel, validator
+
+class ListingSchema(BaseModel):
+    title: str
+    description: str
+    category: str
+    tags: list[str]
+    suggested_price: float   # must be numeric — never str
+
+    @validator("suggested_price")
+    def price_in_range(cls, v):
+        assert 50 <= v <= 50000
+        return v
+```
+
+### Retry Policy
+
+1. Parse + validate. If valid → return.
+2. If invalid → retry once (15 s timeout), appending: `"Return ONLY the JSON object. No other text."`
+3. If retry also invalid → `LLMGenerationError` → `error.code = "llm_failed"`.
+
+---
+
+## TH-2b. Qwen Image Enhancement — Exact Configuration
+
+**Provider:** NVIDIA NIM
+**Model:** Qwen-Image-Edit (exact ID verified from [build.nvidia.com](https://build.nvidia.com) before coding, stored in `QWEN_IMAGE_MODEL`)
+**Auth:** `NVIDIA_NIM_API_KEY` + `NVIDIA_NIM_BASE_URL` — same credentials as Nemotron. No separate image API key.
+
+> [!CAUTION]
+> **Qwen-Image-Edit is a dedicated image-editing model — not a VLM chat model.**
+> It does NOT use the `chat.completions` endpoint. The implementation agent MUST:
+> 1. Verify the exact `QWEN_IMAGE_MODEL` ID from the NVIDIA NIM console.
+> 2. Read the model's API documentation at [build.nvidia.com](https://build.nvidia.com) to confirm the correct request format (endpoint path, payload structure, and response format) for image editing.
+> 3. Use that verified request format in `image_service.py`.
+> Do NOT assume it uses the same endpoint as the LLM.
+
+### Required Behavior
+
+**Input:**
+- Product image (JPEG or PNG)
+- Compressed to ≤ 5 MB, max 1920px on longest edge before sending
+
+**Edit instruction to model:**
+- Remove or replace any distracting background
+- Place the product on a clean white or light neutral background
+- Improve lighting to clearly reveal product details and texture
+- Preserve the actual product appearance — do not invent or modify the product itself
+
+**Output:**
+- Enhanced image bytes/file returned by the API
+- Compress if necessary (JPEG 85%, max 1920px)
+- Upload enhanced image to Supabase Storage: `listing-images/enhanced/<uuid>.jpg`
+- Return public Supabase URL as `enhanced_image_url`
+
+### Implementation Note
+
+The implementation skeleton below is a **placeholder only**. The actual request format, endpoint, and response parsing depend on the specific NVIDIA NIM Qwen-Image-Edit API contract, which must be read from the model's documentation before writing code:
+
+```python
+import httpx
+
+async def enhance_image(image_bytes: bytes) -> str:
+    """
+    Calls NVIDIA NIM Qwen-Image-Edit API.
+    Implementation agent: read the exact API contract from build.nvidia.com
+    for the verified QWEN_IMAGE_MODEL before implementing this function.
+    """
+    # 1. Compress image if > 5 MB or > 1920px
+    compressed = compress_image(image_bytes, max_mb=5, max_px=1920)
+
+    # 2. Call NVIDIA NIM Qwen-Image-Edit endpoint
+    #    (use the request format documented for settings.QWEN_IMAGE_MODEL at build.nvidia.com)
+    #    Instruction: remove background, clean white background, improve lighting,
+    #    preserve product details, do not modify the product.
+
+    # 3. Extract enhanced image bytes from API response
+    #    (format depends on API contract — may be base64, URL, or binary)
+
+    # 4. Upload to Supabase Storage
+    path = f"listing-images/enhanced/{uuid4()}.jpg"
+    supabase.storage.from_("listing-images").upload(path, enhanced_bytes)
+    return supabase.storage.from_("listing-images").get_public_url(path)
+```
+
+### Constraints
+
+| Constraint | Value |
+|---|---|
+| Max image size before API call | 5 MB (compress: JPEG 85%, max 1920px) |
+| Accepted input MIME types | `image/jpeg`, `image/png` |
+| Timeout | 25 s, 0 retries |
+| Max retries | 0 (image enhancement is non-critical) |
+
+### Fallback (mandatory)
+
+If any exception occurs (timeout, API error, invalid response, parse error):
+- Log warning with `request_id` and error type
+- Return `original_image_url` (already uploaded to Supabase at start of pipeline)
+- Set `image_warning: true` in the pipeline response
+- **Never raise the exception to the pipeline orchestrator**
+- Pipeline continues to category, LLM, and pricing normally
+
+---
+
+## TH-3. MobileNetV3-Small — Strategy & Spec
+
+> [!CAUTION]
+> No fine-tuned weights on Indian craft categories exist. **Do not attempt model training during the 48-hour build.**
+
+**Strategy:** ImageNet-pretrained MobileNetV3-Small (`torchvision.models`) + label-mapping heuristic.
+
+```python
+import torchvision.models as models, torchvision.transforms as T, torch
+from PIL import Image
+
+IMAGENET_TO_CRAFT = {
+    "pot": "Pottery", "vase": "Pottery", "jar": "Pottery", "bowl": "Pottery",
+    "wool": "Textiles", "scarf": "Textiles",
+    "basket": "Bamboo", "wicker": "Bamboo",
+    "wooden_spoon": "Wood",
+    "necklace": "Jewellery", "bracelet": "Jewellery",
+    # All unmapped classes → "Other"
+}
+
+MODEL = models.mobilenet_v3_small(weights="DEFAULT")
+MODEL.eval()
+
+TRANSFORM = T.Compose([
+    T.Resize((224, 224)),
+    T.ToTensor(),
+    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+```
+
+| Field | Value |
+|---|---|
+| Input | 224 × 224 px RGB |
+| Normalization | ImageNet mean/std |
+| Confidence threshold | softmax < 0.4 → `"Other"` |
+| Runtime | CPU only |
+| On exception | Return `{"category": "Other", "confidence": 0.0}` — never raise |
+
+---
+
+## TH-4. End-to-End API Contract
+
+### `POST /api/v1/listings/process`
+
+**Content-Type:** `multipart/form-data`
+
+| Field | Type | Required | Constraints |
+|---|---|---|---|
+| `photo` | File | Yes | `image/jpeg` or `image/png` · max 10 MB |
+| `audio` | File | Yes | `audio/wav`, `audio/mpeg`, `audio/mp4`, `audio/ogg`, `audio/m4a` · max 5 MB |
+| `language` | String | Yes | `"te"` / `"hi"` / `"en"` |
+
+#### Success `200 OK`
+
+```json
+{
+  "success": true,
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "transcript": "ఇది నా తల్లి చేత తయారు చేయబడిన మట్టి కుండ",
+  "category": { "name": "Pottery", "confidence": 0.87 },
+  "original_image_url": "https://<project>.supabase.co/storage/v1/object/public/listing-images/original/<uuid>.jpg",
+  "enhanced_image_url": "https://<project>.supabase.co/storage/v1/object/public/listing-images/enhanced/<uuid>.jpg",
+  "image_warning": false,
+  "listing": {
+    "title": "Handcrafted Terracotta Water Pot",
+    "description": "Traditional handmade terracotta pot for everyday water storage.",
+    "category": "Pottery",
+    "tags": ["terracotta", "handmade", "pottery", "kitchen"],
+    "suggested_price": 450
+  }
+}
+```
+
+> `suggested_price` is always a **number**, never a string.
+> `image_warning: true` → enhancement failed; `enhanced_image_url` equals `original_image_url`.
+
+#### Error Response
+
+```json
+{
+  "success": false,
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "error": { "code": "stt_failed", "message": "Could not understand the recording. Please try again." }
+}
+```
+
+#### Error Code Registry
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `validation_failed` | 422 | Missing/invalid field |
+| `file_too_large` | 413 | Photo > 10 MB or audio > 5 MB |
+| `stt_failed` | 200 | Both Whisper + GCloud STT failed |
+| `llm_failed` | 200 | LLM invalid JSON after retry |
+| `save_failed` | 503 | Supabase upload/insert failure |
+| `internal_error` | 500 | Unexpected server error |
+
+**Never expose:** stack traces, Python exceptions, API keys, or internal service URLs.
+
+---
+
+## TH-5. Confirm API Contract
+
+### `POST /api/v1/listings/confirm`
+
+**Content-Type:** `application/json`
+
+```json
+{
+  "artisan_id": null,
+  "original_image_url": "string",
+  "enhanced_image_url": "string",
+  "image_warning": false,
+  "transcript": "string",
+  "title": "string (artisan-edited, max 80 chars)",
+  "description": "string (artisan-edited, max 400 chars)",
+  "category": "string",
+  "tags": ["string"],
+  "final_price": 450,
+  "suggested_price": 450
+}
+```
+
+**Business rule:** Backend inserts exactly what it receives. AI values never overwrite artisan edits.
+
+#### Success `200 OK`
+
+```json
+{ "success": true, "product_id": "<uuid>" }
+```
+
+#### Failure `503`
+
+```json
+{ "success": false, "error": { "code": "save_failed", "message": "Couldn't save your listing. Please try again." } }
+```
+
+---
+
+## TH-6. Timeout & Retry Matrix
+
+| Service | Timeout | Retries | Failure behavior |
+|---|---|---|---|
+| Whisper STT | 30 s | 0 (fallback to GCloud) | Immediate GCloud fallback |
+| Google Cloud STT | 15 s | 0 | `stt_failed` |
+| Qwen Image (NIM) | 25 s | 0 | Original image, `image_warning: true` |
+| MobileNetV3 | 5 s | 0 | `category = "Other"` |
+| Nemotron LLM | 20 s first / 15 s retry | 1 | After retry fail → `llm_failed` |
+| SerpApi | 8 s | 0 | Cost-plus fallback |
+| Supabase Storage | 15 s | 1 (2 s delay) | `save_failed` |
+| Supabase DB insert | 10 s | 1 (2 s delay) | `save_failed` |
+
+**Pipeline budget:** ~25 s typical · ~60 s worst case (LLM retry + STT fallback both triggered).
+
+> [!NOTE]
+> The Flutter Processing screen must animate indefinitely until the API responds. Do not hard-timeout on the client side.
+
+---
+
+## TH-7. Pipeline Failure Isolation
+
+### Critical Path (all must succeed)
+
+```
+Audio ─┬─► STT (Whisper → GCloud fallback) ─► LLM ─► Supabase confirm
+Photo ─┘
+```
+
+### Non-Critical (failure = graceful degradation, never pipeline failure)
+
+| Service | Failure behavior |
+|---|---|
+| Qwen image | Use original image; `image_warning: true`; continue |
+| MobileNetV3 | `category = "Other"`; LLM infers; artisan edits |
+| SerpApi | Cost-plus fallback; transparent to artisan |
+
+Each non-critical service is wrapped in `try/except` that logs with `request_id` and returns the fallback. **It must never re-raise to the pipeline orchestrator.**
+
+---
+
+## TH-8. File Lifecycle
+
+```
+Flutter → multipart upload
+  → FastAPI temp: /tmp/<request_id>_photo.jpg, /tmp/<request_id>_audio.m4a
+  → validate MIME + size
+  → compress photo if > 5 MB (JPEG 85%, max 1920px)
+  → pipeline processing
+  → upload originals + enhanced to Supabase Storage
+  → finally: delete /tmp/<request_id>_*   ← mandatory, in finally block
+```
+
+| File | Max upload | Stored? | Destination |
+|---|---|---|---|
+| Photo (original) | 10 MB | Yes | `listing-images/original/<uuid>.jpg` |
+| Photo (enhanced) | — | Yes | `listing-images/enhanced/<uuid>.jpg` |
+| Audio | 5 MB | **No** | Discarded after transcription |
+
+---
+
+## TH-9. Supabase Security Model
+
+| Credential | Used by | Rule |
+|---|---|---|
+| `SUPABASE_KEY` (anon) | FastAPI backend | CRUD via service logic |
+| Service-role key | **Never in Flutter** | Prohibited — bypasses RLS |
+| Supabase anon key | Flutter client | Read catalog listings only |
+
+> [!IMPORTANT]
+> **RLS is mandatory — not optional, even in demo mode.** The Supabase `products` table must have RLS enabled before any data is written. Use the policies below as the minimum baseline.
+
+```sql
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "demo_read_all" ON products FOR SELECT USING (true);
+CREATE POLICY "demo_insert"   ON products FOR INSERT WITH CHECK (true);
+```
+
+**Storage:** Bucket `listing-images` is public-read (product images are intentionally public). Uploads are performed **only** by the FastAPI backend using `SUPABASE_KEY`. Flutter must not have write access to storage.
+
+**Flutter credential rule:** Flutter may use only the Supabase anon key for permitted reads (catalog listings). The service-role key must never be placed in any Flutter file, asset, or environment.
+
+---
+
+## TH-10. Environment Configuration (Canonical)
+
+### `backend/.env.example`
+
+```
+# Supabase
+SUPABASE_URL=
+SUPABASE_KEY=
+
+# NVIDIA NIM — LLM + Image (share same API key)
+NVIDIA_NIM_API_KEY=
+NVIDIA_NIM_BASE_URL=https://integrate.api.nvidia.com/v1
+NEMOTRON_MODEL=          # verify at build.nvidia.com before coding
+QWEN_IMAGE_MODEL=        # verify at build.nvidia.com before coding
+
+# STT
+WHISPER_MODEL=base
+GOOGLE_APPLICATION_CREDENTIALS=
+
+# Pricing
+SERPAPI_KEY=
+
+# TTS (P1 — decide before Phase 3)
+TTS_PROVIDER=google      # google | sarvam
+SARVAM_API_KEY=
+
+# Development
+MOCK_MODE=false
+LOG_LEVEL=INFO
+```
+
+### `.gitignore` additions
+
+```
+.env
+*.env
+__pycache__/
+/tmp/
+*.log
+```
+
+---
+
+## TH-11. Flutter Dependency Rationalization
+
+**`sqflite` is removed.** No concrete relational local storage use case exists in the MVP. Hive covers all offline persistence.
+
+| Package | Purpose |
+|---|---|
+| `hive` + `hive_flutter` | Offline queue, draft listings |
+| `connectivity_plus` | Network state stream → queue flush trigger |
+| `shared_preferences` | Language preference, tutorial-seen flags |
+| `go_router` | Declarative routing |
+| `riverpod` + `flutter_riverpod` | UI/application state |
+| `dio` | HTTP client with timeouts and interceptors |
+| `image_picker` | Camera + gallery photo capture |
+| `record` | Audio recording to `.m4a` |
+| `audioplayers` | TTS playback (P1) |
+| `cached_network_image` | Network image loading with cache |
+| `supabase_flutter` | Direct Supabase catalog reads |
+| `flutter_localizations` + `intl` | ARB-based multilingual UI |
+| `lottie` | Onboarding animation (one small file) |
+
+---
+
+## TH-12. Offline Queue State Machine
+
+```
+[Capture, no internet] → QUEUED (Hive)
+                              │
+                     connectivity restored
+                              ▼
+                          UPLOADING
+                         ╱         ╲
+                   success         failure
+                      │                │
+                   SUCCESS          FAILED (retry_count++)
+                                    │
+                              if count < 3 → back to QUEUED
+                              if count >= 3 → DEAD (surface to user)
+```
+
+**Hive box schema per item:**
+
+```dart
+{
+  "id": "uuid",
+  "photo_path": "/absolute/path/photo.jpg",
+  "audio_path": "/absolute/path/audio.m4a",
+  "language": "te",
+  "created_at": "ISO8601",
+  "status": "queued",       // queued | uploading | failed | dead
+  "retry_count": 0,
+  "last_error": null
+}
+```
+
+Rules: FIFO · unique IDs · max 3 retries · files preserved until SUCCESS then deleted · UPLOADING resets to QUEUED on app restart.
+
+---
+
+## TH-13. Connectivity Behavior
+
+Connectivity ≠ internet access. Correct pattern:
+
+1. `connectivity_plus` signals `Connected`
+2. App attempts HTTP upload to backend
+3. If HTTP **succeeds** → mark `SUCCESS`, delete local files
+4. If HTTP **fails** → keep `QUEUED`, increment `retry_count`
+
+Never crash on connection loss. All network calls wrapped in `try/catch`.
+
+---
+
+## TH-14. Riverpod State Boundaries
+
+| State | Owner |
+|---|---|
+| Current AI listing (Processing → Review) | `Riverpod StateNotifier` |
+| Processing stage (step 1–4) | `Riverpod StateProvider` |
+| Connectivity | `Riverpod StreamProvider` wrapping `connectivity_plus` |
+| Upload queue items (UI) | `Riverpod StateNotifier` reading from Hive |
+| Upload queue (persistence) | **Hive** (source of truth) |
+| Catalog listings | `Riverpod FutureProvider` → Supabase |
+| Language preference | `SharedPreferences` → loaded into Riverpod on startup |
+
+No duplicated sources of truth. Riverpod reads from Hive; it never maintains a separate in-memory copy.
+
+---
+
+## TH-15. Flutter API Layer Architecture
+
+```
+UI Widget
+  └─► Riverpod Provider / StateNotifier
+        └─► ApiService  (lib/core/services/api_service.dart)
+              └─► Dio  (base URL, headers, timeouts, interceptors)
+                    └─► FastAPI backend
+                          └─► Typed response model (Dart class)
+                                └─► Riverpod state update → UI rebuild
+```
+
+**`ApiService` typed interface:**
+
+```dart
+Future<ProcessResponse> processListing({
+  required File photo, required File audio, required String language,
+});
+Future<ConfirmResponse> confirmListing(ConfirmRequest request);
+Future<Uint8List> readAloud({required String text, required String language});
+```
+
+Dio: `connectTimeout: 10s`, `receiveTimeout: 60s`. HTTP calls never appear inside `Widget.build()`.
+
+---
+
+## TH-16. Backend URL Strategy
+
+| Environment | URL |
+|---|---|
+| Android emulator (dev) | `http://10.0.2.2:8000` |
+| Physical Android device (dev) | `http://<laptop-LAN-IP>:8000` |
+| SIH demo (deployed) | `https://<railway-or-render>.app` |
+
+```dart
+// lib/core/config/app_config.dart
+static const String backendBaseUrl = String.fromEnvironment(
+  'BACKEND_URL',
+  defaultValue: 'http://10.0.2.2:8000',   // emulator default
+);
+```
+
+Build: `flutter run --dart-define=BACKEND_URL=https://...`
+
+---
+
+## TH-17. API Versioning
+
+All routes under `/api/v1/`. Future changes go to `/api/v2/` without breaking Flutter client.
+
+| Method | Path | P-level |
+|---|---|---|
+| `GET` | `/health` | P0 |
+| `POST` | `/api/v1/listings/process` | P0 |
+| `POST` | `/api/v1/listings/confirm` | P0 |
+| `POST` | `/api/v1/tts` | P1 |
+
+---
+
+## TH-18. Logging Strategy
+
+Structured JSON logging, one entry per stage per request:
+
+```python
+logger.info({
+    "request_id": rid, "stage": "llm", "provider": "nim_nemotron",
+    "duration_ms": 3200, "success": True,
+})
+```
+
+**Never log:** API keys, Supabase credentials, audio bytes, full image bytes, personal information.
+Log level: `INFO` via `LOG_LEVEL` env var.
+
+---
+
+## TH-19. Request ID
+
+```python
+request_id = str(uuid.uuid4())   # generated at route entry
+```
+
+Included in all log entries for this request and in all success/error response bodies. Diagnostic only — not a security token.
+
+---
+
+## TH-20. Test Fixtures
+
+Create `backend/tests/fixtures/`:
+
+| File | Description |
+|---|---|
+| `pottery_sample.jpg` | Terracotta pot, plain background |
+| `textile_sample.jpg` | Handloom fabric |
+| `bamboo_sample.jpg` | Bamboo basket |
+| `wood_sample.jpg` | Wooden craft item |
+| `te_description.m4a` | Telugu audio: product description |
+| `hi_description.m4a` | Hindi audio: product description |
+| `en_description.m4a` | English audio: product description |
+
+Used in `pytest tests/integration/test_pipeline.py` and the curl commands in the Verification Plan.
+
+---
+
+## TH-21. Mock / Demo Fallback Mode
+
+`MOCK_MODE=true` returns deterministic fixture responses without calling external AI APIs.
+
+```python
+# At top of each service:
+if settings.MOCK_MODE:
+    return MOCK_TRANSCRIPT   # from backend/tests/mock_data.py
+```
+
+**Rules:**
+- Default: `MOCK_MODE=false`
+- Log `"MOCK MODE ACTIVE"` at startup when enabled
+- Never commit with `MOCK_MODE=true`
+- Never use mock mode during the live SIH demo unless a service is genuinely unavailable
+
+---
+
+## TH-22. Demo Resilience Plan
+
+| Failure | User experience | Recovery |
+|---|---|---|
+| Whisper times out | GCloud STT used — transparent | Automatic |
+| Both STT fail | "Couldn't understand — tap to re-record" | Re-record |
+| Qwen image fails | Original image shown, soft amber banner | Continue |
+| MobileNet unpredictable | Category = "Other", artisan edits in Review | Edit in Review |
+| Nemotron/NIM down | "Listing creation failed — try again" | Retry from Processing |
+| SerpApi rate-limited | Cost-plus price — transparent to artisan | Automatic |
+| Supabase save fails | "Couldn't save — tap to retry" persistent CTA | Retry button |
+| No internet at venue | Hive queue, auto-uploads on reconnect | Automatic |
+
+---
+
+## TH-23. Pre-Demo Security Checklist
+
+```
+[ ] .env not committed; present in .gitignore
+[ ] .env.example has empty placeholders only
+[ ] No NVIDIA_NIM_API_KEY in any .dart / .py / .yaml / .json / .md
+[ ] No Supabase service-role key in Flutter source
+[ ] No SERPAPI_KEY in Flutter source
+[ ] No GCP credentials content in source
+[ ] git log -p shows no real credentials in history
+[ ] MOCK_MODE=false in production .env
+[ ] Debug logging verified: does not print API keys
+[ ] Supabase bucket: public-read, not public-write from Flutter
+```
+
+---
+
+## TH-24. Performance Budget
+
+**Target:** `POST /api/v1/listings/process` completes in ≤ 25 s under normal demo conditions.
+
+| Stage | Budget | Action if over |
+|---|---|---|
+| Validation + temp write | < 1 s | — |
+| Whisper STT | < 8 s | Switch `WHISPER_MODEL=tiny` |
+| Qwen-Image-Edit | < 10 s | Skip; use original image |
+| MobileNetV3 | < 2 s | — |
+| Nemotron LLM | < 8 s | Reduce `max_tokens=256` |
+| SerpApi | < 3 s | Skip to cost-plus |
+| **Total (typical)** | **≤ 25 s** | — |
+
+Measure each stage with `time.perf_counter()`, log `duration_ms`. Tune slowest stages after first end-to-end run.
+
+**Important performance caveats:**
+- ≤ 25 s is the target under **normal demo conditions** — it is not an absolute guarantee.
+- External API latency (NVIDIA NIM, SerpApi, Google Cloud) is variable and outside the application's control.
+- The Flutter Processing screen must animate and wait safely for the actual backend response. **Do not hard-timeout the UI at 25 seconds.**
+- Non-critical services (image editing, category, pricing) must degrade gracefully rather than extending total pipeline time.
+- Do not display fake progress percentages. Show the 4 defined processing steps (understanding voice, enhancing photo, identifying craft, creating listing) with real state updates.
+
+---
+
+## TH-25. P0 / P1 Final Prioritization
+
+### P0 — Required before SIH demo
+
+Flutter app launches on Android · Language selection + persistence · Photo capture · Voice recording · `POST /api/v1/listings/process` completes · Whisper STT + GCloud fallback · Qwen image + original fallback · MobileNetV3 category + "Other" fallback · Nemotron listing generation · SerpApi pricing + cost-plus fallback · Review screen with all editable fields · `POST /api/v1/listings/confirm` saves to Supabase · Catalog displays saved listings · Artisan-friendly error messages (no stack traces) · Basic offline queue (Hive, FIFO) · No crash during demo run.
+
+### P1 — Add only if all P0 is complete and time remains
+
+TTS "Read Aloud" (`/api/v1/tts`) · UI language toggle on the fly · FIFO offline queue drain with retry · Advanced catalog card entrance animations · Image crossfade (original ↔ enhanced) in Review · Additional languages beyond te/hi/en.
+
+**Rule:** If Phase 7 (error states + offline) is incomplete by hour 36, skip all P1.
+
+---
+
+## TH-26. Implementation Gate Checklist
+
+Before any implementation agent writes a single line of code, every item must be checked:
+
+```
+PROVIDER CREDENTIALS
+[ ] NEMOTRON_MODEL verified at build.nvidia.com and set in .env
+[ ] QWEN_IMAGE_MODEL verified at build.nvidia.com and set in .env
+[ ] Google Cloud service account JSON with Speech-to-Text API enabled
+[ ] SerpApi key available + quota verified (~50 test requests)
+[ ] Supabase project URL + anon key available
+[ ] TTS_PROVIDER chosen only if implementing P1 TTS (does NOT block P0)
+[ ] Backend deployment target chosen (Railway or Render)
+
+API CONTRACTS
+[ ] POST /process: request, response, error schemas defined (TH-4) ✓
+[ ] POST /confirm: request, response schemas defined (TH-5) ✓
+[ ] All error codes documented (TH-4) ✓
+
+RELIABILITY
+[ ] Timeouts per service defined (TH-6) ✓
+[ ] Retry policy per service defined (TH-6) ✓
+[ ] Fallback for each non-critical service defined (TH-7) ✓
+[ ] Temp file cleanup in finally block (TH-8) ✓
+
+INFRASTRUCTURE
+[ ] Supabase schema.sql ready to run ✓
+[ ] Storage bucket config defined (TH-9) ✓
+[ ] RLS policy defined (TH-9) ✓
+[ ] .env.example with all required vars (TH-10) ✓
+[ ] .gitignore covers .env (TH-10) ✓
+
+FLUTTER
+[ ] sqflite removed from pubspec.yaml (TH-11) ✓
+[ ] All packages have documented purpose (TH-11) ✓
+[ ] Offline queue state machine defined (TH-12) ✓
+[ ] Riverpod state boundaries defined (TH-14) ✓
+[ ] API layer architecture defined (TH-15) ✓
+[ ] Backend URL strategy defined (TH-16) ✓
+
+TESTING & OPERATIONS
+[ ] Test fixtures defined (TH-20) ✓
+[ ] Mock mode defined (TH-21) ✓
+[ ] Pre-demo security checklist (TH-23) ✓
+[ ] Performance budget defined (TH-24) ✓
+[ ] P0/P1 priorities clear (TH-25) ✓
+[ ] MVP scope (5 screens, no marketplace/payments) unchanged ✓
+```
+
+---
+
+## TH-27. Consistency Audit — Findings & Fixes (Final)
+
+All contradictions found across the plan are listed here with their resolution. Implementation agents must use TH section values as the authoritative specification.
+
+| # | Location | Finding | Resolution |
+|---|---|---|---|
+| 1 | Open Decision §, Qwen line | `"PiAPI / NVIDIA NIM / Alibaba Cloud Model Studio"` — three providers listed | **Resolved:** Open Decision block rewritten. NVIDIA NIM with Qwen-Image-Edit is the sole provider (TH-2b). |
+| 2 | `requirements.txt` | `nvidia-nemotron` — not a real PyPI package | **Fixed:** Replaced with `openai` package (TH-2). |
+| 3 | `.env.example` | `NEMOTRON_MODEL=nvidia/llama-3.1-nemotron-ultra-253b-v1` — unverified model ID hardcoded | **Fixed:** Replaced with empty placeholder. Must be verified from NIM console (TH-2). |
+| 4 | `.env.example` | `QWEN_IMAGE_API_KEY` + `QWEN_IMAGE_ENDPOINT` — wrong key name, wrong provider | **Fixed:** Removed. Both services share `NVIDIA_NIM_API_KEY`. `QWEN_IMAGE_MODEL=` placeholder added (TH-10). |
+| 5 | `image_service.py` | Referenced `Qwen-Image-2.0`, `Qwen2-VL`, `PiAPI`, `Alibaba` | **Fixed:** All replaced with `Qwen-Image-Edit via NVIDIA NIM`. TH-2b specifies image-editing API contract. |
+| 6 | File tree, `llm_service.py` | `← Gemini/GPT/Claude` | **Fixed:** `← Nemotron via NVIDIA NIM` (TH-2). |
+| 7 | File tree, `image_service.py` | `← Qwen2-VL via NVIDIA NIM` | **Fixed:** `← Qwen-Image-Edit via NVIDIA NIM` (TH-2b). |
+| 8 | Architecture diagram (line 16) | `Qwen-Image-2.0` | **Fixed:** `Qwen-Image-Edit (NVIDIA NIM)`. |
+| 9 | Key Design Decisions table | `Qwen-Image-2.0 over rembg+PIL` | **Fixed:** `Qwen-Image-Edit (NVIDIA NIM) over rembg+PIL` with correct rationale. |
+| 10 | Acceptance criteria | `Qwen-Image-2.0 returns enhanced image` | **Fixed:** References Qwen-Image-Edit with correct fallback behavior. |
+| 11 | Phase 2 schedule | `image_service.py (Qwen-Image-2.0)` | **Fixed:** `Qwen-Image-Edit via NVIDIA NIM`. |
+| 12 | UI spec §10 Catalog, §11 Navigation | Settings tab (gear icon) as a third bottom-nav tab | **Fixed:** Bottom nav is 2 tabs only (Capture + Catalog). No Settings screen. Language selection via `LanguageSelector` on Capture screen. |
+| 13 | Supabase schema manual steps | `Enable RLS — optional for demo mode` | **Fixed:** RLS is mandatory even in demo mode (TH-9). |
+| 14 | TH-2b | Described Qwen image model as a VLM chat completion using `client.chat.completions.create` | **Fixed:** TH-2b rewritten. Qwen-Image-Edit uses a dedicated image-editing API. Implementation agent must read NIM model card for correct request format. |
+| 15 | Component 4 localization | `LLM (Gemini/GPT)` for ARB translation | **Clarification:** Acceptable — one-time dev tool, not production runtime. Labeled in TH-1. |
+| 16 | `pubspec.yaml` | `sqflite: ^2.3.0` with no documented use case | **Fixed:** Removed (TH-11). |
+| 17 | Open Decision TTS | Still unresolved | **Not a contradiction** — genuine pending user decision. TTS is P1 only and must NOT block P0. See TH-28. |
+| 18 | Performance section (TH-24) | `< 25 s` presented without caveats | **Fixed:** Clarified as normal demo-condition target. External API latency is variable. Flutter UI must not hard-timeout. No fake progress percentages. |
+
+---
+
+## TH-28. Items Requiring User Input Before Build
+
+These cannot be resolved without the user's direct account access:
+
+| Item | Action required | Blocks |
+|---|---|---|
+| **NEMOTRON_MODEL ID** | Log in to build.nvidia.com → confirm available Nemotron model → set `NEMOTRON_MODEL` in `.env` | TH-2, Phase 3 |
+| **QWEN_IMAGE_MODEL ID** | Log in to build.nvidia.com → confirm Qwen-Image-Edit model ID and API request format → set `QWEN_IMAGE_MODEL` in `.env` | TH-2b, Phase 2 |
+| **TTS_PROVIDER** | P1 only — choose `google` or `sarvam` and have credentials ready **only if implementing TTS**. Must not block P0. | TH-1, P1 |
+| **SERPAPI_KEY** | Confirm SerpApi account + quota (~50 test requests for demo) | Phase 3 |
+| **GCP credentials** | Service account JSON with Cloud Speech-to-Text API enabled | Phase 2 |
+| **Supabase project** | Create project → run `schema.sql` → create `listing-images` bucket | Phase 0 |
+| **Backend deployment** | Choose Railway or Render → deploy → set `BACKEND_URL` for demo build | Phase 8 |
