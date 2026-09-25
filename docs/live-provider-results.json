@@ -1,0 +1,74 @@
+{
+  "mode": "live",
+  "speech_samples": [
+    {
+      "language": "en",
+      "expected": "This bowl is carved by hand from neem wood.",
+      "tts": "verified_audio_returned",
+      "actual": "This bowl is carved by hand from neem wood.",
+      "similarity": 1.0,
+      "stt": "verified_response"
+    },
+    {
+      "language": "hi",
+      "expected": "यह कटोरा नीम की लकड़ी से हाथ से बनाया गया है।",
+      "tts": "verified_audio_returned",
+      "actual": "यह कटोरा नीम की लकड़ी से हाथ से बनाया गया है।",
+      "similarity": 0.966,
+      "stt": "verified_response"
+    },
+    {
+      "language": "te",
+      "expected": "ఈ గిన్నెను వేప చెక్కతో చేతితో తయారు చేశాము.",
+      "tts": "verified_audio_returned",
+      "actual": "ఈ గిన్నెను వేప చెక్కతో చేతితో తయారు చేశాము.",
+      "similarity": 1.0,
+      "stt": "verified_response"
+    }
+  ],
+  "limitations": [
+    "Synthetic TTS speech is not representative of artisan accents or noisy recordings.",
+    "ImageNet category mapping is not a fine-tuned Indian craft classifier."
+  ],
+  "llm": [
+    {
+      "category_input": "Wood",
+      "result": "verified_schema",
+      "listing": {
+        "title": "Hand‑Carved Neem Wood Bowl",
+        "description": "A hand‑carved bowl made from neem wood, showcasing natural grain and smooth curves.",
+        "category": "Wood",
+        "tags": [
+          "hand carved",
+          "neem wood",
+          "bowl"
+        ],
+        "suggested_price": 1200.0,
+        "attributes": {
+          "material": "neem wood",
+          "technique": "hand carved"
+        }
+      }
+    },
+    {
+      "category_input": "Textiles",
+      "result": "RuntimeError"
+    }
+  ],
+  "pricing": {
+    "suggested_price": 850.0,
+    "source": "ai_estimate",
+    "low": null,
+    "high": null,
+    "comparables": [],
+    "explanation": "Live market data is unavailable. This AI estimate is not a market quote; set your own price."
+  },
+  "classifier": {
+    "name": "Other",
+    "confidence": 0.03,
+    "model_loaded": true
+  },
+  "supabase_read": "verified_read",
+  "discovery_schema": "APIError",
+  "image_enhancement": "blocked_no_deployed_image_edit_endpoint"
+}

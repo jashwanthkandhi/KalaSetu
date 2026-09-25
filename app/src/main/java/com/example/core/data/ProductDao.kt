@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ProductDao {
     @Query("SELECT * FROM products ORDER BY createdAt DESC")
+    suspend fun snapshot(): List<ProductEntity>
+    @Query("SELECT * FROM products ORDER BY createdAt DESC")
     fun getAllProducts(): Flow<List<ProductEntity>>
 
     @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
@@ -33,6 +35,11 @@ interface ProductDao {
 
 @Dao
 interface OfflineQueueDao {
+    @Query("SELECT * FROM offline_queue ORDER BY createdAt ASC")
+    suspend fun snapshot(): List<OfflineQueueEntity>
+
+    @Query("UPDATE offline_queue SET status = 'queued' WHERE status = 'uploading'")
+    suspend fun recoverInterrupted()
     @Query("SELECT * FROM offline_queue ORDER BY createdAt ASC")
     fun getAllQueueItems(): Flow<List<OfflineQueueEntity>>
 

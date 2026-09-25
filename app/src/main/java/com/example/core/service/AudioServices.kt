@@ -17,7 +17,7 @@ class AudioRecordingService(private val context: Context) {
 
     fun startRecording(): Boolean {
         return try {
-            val audioDir = File(context.cacheDir, "audio_recordings")
+            val audioDir = File(context.filesDir, "audio_recordings")
             if (!audioDir.exists()) audioDir.mkdirs()
             val file = File(audioDir, "rec_${System.currentTimeMillis()}.m4a")
             currentOutputFile = file
@@ -29,6 +29,7 @@ class AudioRecordingService(private val context: Context) {
                 MediaRecorder()
             }
 
+            mediaRecorder = recorder
             recorder.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -44,34 +45,34 @@ class AudioRecordingService(private val context: Context) {
             isCurrentlyRecording = true
             true
         } catch (e: Exception) {
-            Log.w("AudioRecordingService", "Hardware microphone unavailable, using safe recording state: ${e.message}")
-            // Fallback for emulators without mic hardware
-            val audioDir = File(context.cacheDir, "audio_recordings")
-            if (!audioDir.exists()) audioDir.mkdirs()
-            currentOutputFile = File(audioDir, "simulated_${System.currentTimeMillis()}.m4a")
-            isCurrentlyRecording = true
-            true
+            mediaRecorder?.release()
+            mediaRecorder = null
+            isCurrentlyRecording = false
+            false
         }
     }
 
     fun stopRecording(): String? {
-        if (!isCurrentlyRecording) return currentOutputFile?.absolutePath
+        if (!isCurrentlyRecording) return currentOutputFile?.takeIf { it.exists() && it.length() > 100 }?.absolutePath
         isCurrentlyRecording = false
+        var valid = true
         try {
             mediaRecorder?.apply {
                 try {
                     stop()
                 } catch (e: Exception) {
+                    valid = false
                     Log.w("AudioRecordingService", "Error stopping recorder: ${e.message}")
                 }
                 release()
             }
         } catch (e: Exception) {
+            valid = false
             Log.w("AudioRecordingService", "Exception releasing recorder: ${e.message}")
         } finally {
             mediaRecorder = null
         }
-        return currentOutputFile?.absolutePath
+        return currentOutputFile?.takeIf { valid && it.exists() && it.length() > 100 }?.absolutePath
     }
 
     fun getMaxAmplitude(): Int {
@@ -89,7 +90,7 @@ class AudioPlayerService {
     private var mediaPlayer: MediaPlayer? = null
     private var isPlaying = false
 
-    fun playAudio(filePath: String, onCompletion: () -> Unit = {}) {
+    fun playAudio(filePath: String, speed: Float = 1f, onCompletion: () -> Unit = {}) {
         stopAudio()
         try {
             val file = File(filePath)
@@ -101,6 +102,7 @@ class AudioPlayerService {
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(filePath)
                 prepare()
+                playbackParams = playbackParams.setSpeed(speed.coerceIn(0.5f, 1.5f))
                 setOnCompletionListener {
                     this@AudioPlayerService.isPlaying = false
                     onCompletion()
@@ -143,7 +145,7 @@ class TextToSpeechService(context: Context) {
         }
     }
 
-    fun speak(text: String, language: AppLanguage) {
+    fun speak(text: String, language: AppLanguage, speed: Float = 1f) {
         if (!isInitialized || tts == null) return
 
         val locale = when (language) {
@@ -158,6 +160,7 @@ class TextToSpeechService(context: Context) {
                 // Fallback to English
                 tts?.setLanguage(Locale.ENGLISH)
             }
+            tts?.setSpeechRate(speed.coerceIn(0.5f, 1.5f))
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "KalaSetuTTS")
         } catch (e: Exception) {
             Log.w("TextToSpeechService", "Error during speech: ${e.message}")

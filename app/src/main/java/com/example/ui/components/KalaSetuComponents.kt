@@ -316,9 +316,11 @@ fun StatusChip(
         ListingStatus.DRAFT -> Pair(Color(0xFFD4A017), Color(0xFFD4A017))
         ListingStatus.PENDING_UPLOAD -> Pair(KalaWarning, KalaWarning)
         ListingStatus.UPLOADING -> Pair(KalaPrimary, KalaPrimary)
+        else -> Pair(KalaTextMuted, KalaTextMuted)
     }
 
     val label = when (status) {
+        ListingStatus.FAILED, ListingStatus.PENDING_CONFIRM, ListingStatus.ARCHIVED -> status.label
         ListingStatus.SAVED -> KalaSetuStrings.savedStatus(language)
         ListingStatus.DRAFT -> when (language) {
             AppLanguage.TELUGU -> "చిత్తుప్రతి"

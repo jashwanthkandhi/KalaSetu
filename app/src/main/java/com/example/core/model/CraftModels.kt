@@ -25,10 +25,13 @@ enum class CraftCategory(val displayName: String, val iconRes: String) {
 }
 
 enum class ListingStatus(val label: String) {
-    SAVED("Saved"),
+    SAVED("Published"),
     DRAFT("Draft"),
     PENDING_UPLOAD("Pending Upload"),
-    UPLOADING("Uploading")
+    UPLOADING("Processing"),
+    PENDING_CONFIRM("Pending sync"),
+    FAILED("Failed"),
+    ARCHIVED("Archived")
 }
 
 data class Product(
@@ -44,8 +47,18 @@ data class Product(
     val voiceTranscript: String? = null,
     val suggestedPrice: Double,
     val finalPrice: Double,
-    val status: ListingStatus = ListingStatus.SAVED,
-    val createdAt: Long = System.currentTimeMillis()
+    val status: ListingStatus = ListingStatus.DRAFT,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = createdAt,
+    val languageCode: String = "en",
+    val imageWarning: Boolean = false,
+    val marketData: MarketData = MarketData(),
+    val attributes: Map<String, String> = emptyMap(),
+    val publicProfile: ArtisanProfile = ArtisanProfile(),
+    val isFavorite: Boolean = false,
+    val remoteSaved: Boolean = false,
+    val captureAudioPath: String? = null,
+    val lastError: String? = null
 )
 
 data class ProcessResponse(
@@ -59,7 +72,9 @@ data class ProcessResponse(
     val title: String,
     val description: String,
     val tags: List<String>,
-    val suggestedPrice: Double
+    val suggestedPrice: Double,
+    val marketData: MarketData = MarketData(),
+    val attributes: Map<String, String> = emptyMap()
 )
 
 enum class ProcessingStage(val stepNumber: Int) {

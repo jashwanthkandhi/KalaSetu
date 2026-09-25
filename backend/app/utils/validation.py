@@ -1,67 +1,34 @@
-from typing import Optional, Tuple
+import io
+from PIL import Image
+
+MAX_PHOTO_SIZE = 10 * 1024 * 1024
+MAX_AUDIO_SIZE = 5 * 1024 * 1024
 
 
-ALLOWED_IMAGE_TYPES = {
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-    "application/octet-stream",  # Fallback for some mobile HTTP clients
-}
-
-ALLOWED_AUDIO_TYPES = {
-    "audio/wav",
-    "audio/x-wav",
-    "audio/mpeg",
-    "audio/mp3",
-    "audio/mp4",
-    "audio/m4a",
-    "audio/x-m4a",
-    "audio/aac",
-    "audio/ogg",
-    "application/octet-stream",  # Fallback for multipart audio upload
-}
-
-MAX_PHOTO_SIZE = 10 * 1024 * 1024  # 10 MB
-MAX_AUDIO_SIZE = 5 * 1024 * 1024   # 5 MB
+def valid_audio(data):
+    return ((data.startswith(b'RIFF') and data[8:12] == b'WAVE' and len(data) > 44)
+            or (data[4:8] == b'ftyp' and len(data) > 32)
+            or (data.startswith(b'ID3') and len(data) > 32)
+            or (data.startswith(b'OggS') and len(data) > 32)
+            or (len(data) > 32 and data[0] == 255 and data[1] & 0xE0 == 0xE0))
 
 
-def validate_media_files(
-    photo_content: bytes,
-    photo_mime: Optional[str],
-    photo_filename: Optional[str],
-    audio_content: bytes,
-    audio_mime: Optional[str],
-    audio_filename: Optional[str],
-    language: str,
-) -> Tuple[bool, Optional[str], Optional[str]]:
-    """
-    Validates photo, audio, and language.
-    Returns (is_valid, error_code, error_message).
-    """
-    # 1. Validate Language
-    if language not in ("te", "hi", "en"):
-        return False, "validation_failed", f"Unsupported language: '{language}'. Allowed: te, hi, en"
-
-    # 2. Validate Photo Size
-    if len(photo_content) > MAX_PHOTO_SIZE:
-        return False, "file_too_large", "Photo exceeds maximum allowed size of 10 MB."
-    if len(photo_content) == 0:
-        return False, "validation_failed", "Photo file cannot be empty."
-
-    # 3. Validate Audio Size
-    if len(audio_content) > MAX_AUDIO_SIZE:
-        return False, "file_too_large", "Audio exceeds maximum allowed size of 5 MB."
-    if len(audio_content) == 0:
-        return False, "validation_failed", "Audio file cannot be empty."
-
-    # 4. Check photo extension/mime
-    ext = (photo_filename or "").lower().split(".")[-1]
-    if ext not in ("jpg", "jpeg", "png") and (photo_mime or "").lower() not in ALLOWED_IMAGE_TYPES:
-        return False, "validation_failed", "Photo must be a JPEG or PNG image."
-
-    # 5. Check audio extension/mime
-    audio_ext = (audio_filename or "").lower().split(".")[-1]
-    if audio_ext not in ("wav", "mp3", "mp4", "m4a", "aac", "ogg") and (audio_mime or "").lower() not in ALLOWED_AUDIO_TYPES:
-        return False, "validation_failed", "Audio must be in WAV, MP3, M4A, AAC, or OGG format."
-
+def validate_media_files(photo_content, photo_mime, photo_filename, audio_content, audio_mime, audio_filename, language):
+    if language not in ('te', 'hi', 'en'):
+        return False, 'validation_failed', 'Supported languages are Telugu, Hindi and English.'
+    if len(photo_content) > MAX_PHOTO_SIZE or len(audio_content) > MAX_AUDIO_SIZE:
+        return False, 'file_too_large', 'Use a photo up to 10 MB and audio up to 5 MB.'
+    if photo_mime not in ('image/jpeg', 'image/jpg', 'image/png', 'application/octet-stream'):
+        return False, 'validation_failed', 'Photo must be JPEG or PNG.'
+    if audio_mime not in ('audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac', 'audio/ogg', 'application/octet-stream'):
+        return False, 'validation_failed', 'Audio must be WAV, MP3, M4A, AAC or OGG.'
+    try:
+        with Image.open(io.BytesIO(photo_content)) as image:
+            if image.format not in ('JPEG', 'PNG') or image.width * image.height > 40_000_000:
+                raise ValueError('Invalid image')
+            image.verify()
+    except Exception:
+        return False, 'validation_failed', 'Photo is damaged or unsupported. Please choose another photo.'
+    if not valid_audio(audio_content):
+        return False, 'validation_failed', 'Audio is empty, damaged or unsupported. Please record again.'
     return True, None, None

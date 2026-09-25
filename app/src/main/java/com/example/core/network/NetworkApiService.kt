@@ -2,206 +2,76 @@ package com.example.core.network
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
-import com.example.core.model.AppLanguage
-import com.example.core.model.CraftCategory
-import com.example.core.model.ProcessResponse
-import com.example.core.model.ProcessingStage
-import com.example.core.model.Product
+import com.example.core.model.*
 import com.example.core.service.ApiService
-import com.example.core.service.MockApiService
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.InputStream
+import java.security.SecureRandom
 
-class NetworkApiService(
-    private val context: Context,
-    private val fallbackMock: MockApiService = MockApiService()
-) : ApiService {
-
-    private val api: KalaSetuApi
-        get() = RetrofitClient.getApi()
-
-    override suspend fun processListing(
-        photoUri: String,
-        audioPath: String?,
-        language: AppLanguage,
-        onStageUpdate: (ProcessingStage) -> Unit
-    ): ProcessResponse = withContext(Dispatchers.IO) {
+class NetworkApiService(private val context: Context) : ApiService {
+    companion object { private val identityLock = Any() }
+    private val api get() = RetrofitClient.getApi()
+    private val owner: String by lazy { synchronized(identityLock) {
+        val prefs = context.getSharedPreferences("kalasetu_identity", Context.MODE_PRIVATE)
+        prefs.getString("owner", null) ?: ByteArray(32).also { SecureRandom().nextBytes(it) }
+            .joinToString("") { "%02x".format(it) }.also { check(prefs.edit().putString("owner", it).commit()) { "Could not preserve listing ownership." } }
+    } }
+    private fun bytes(uri: String): ByteArray {
+        val result = if (uri.startsWith("content:") || uri.startsWith("file:"))
+            context.contentResolver.openInputStream(Uri.parse(uri))?.use { it.readBytes() }
+        else File(uri).takeIf { it.isFile }?.readBytes()
+        return requireNotNull(result?.takeIf { it.isNotEmpty() }) { "Please select a photo again." }
+    }
+    private fun audio(path: String?) = MultipartBody.Part.createFormData("audio", "recording.m4a",
+        requireNotNull(path) { "Please record a voice note." }.let { File(it).readBytes() }
+            .also { require(it.isNotEmpty()) { "The recording is empty. Please record again." } }
+            .toRequestBody("audio/mp4".toMediaType()))
+    private fun <T> body(response: retrofit2.Response<T>): T {
+        if (!response.isSuccessful) throw java.io.IOException("Service unavailable (${response.code()}). Please try again.")
+        return response.body() ?: throw java.io.IOException("The server returned an incomplete response.")
+    }
+    override suspend fun processListing(photoUri: String, audioPath: String?, language: AppLanguage,
+        onStageUpdate: (ProcessingStage) -> Unit): ProcessResponse = withContext(Dispatchers.IO) {
         onStageUpdate(ProcessingStage.TRANSCRIBING)
-
-        try {
-            // 1. Read Photo Bytes
-            val photoBytes = readBytesFromUri(photoUri)
-            val photoRequestBody = photoBytes.toRequestBody("image/jpeg".toMediaTypeOrNull())
-            val photoPart = MultipartBody.Part.createFormData("photo", "product.jpg", photoRequestBody)
-
-            // 2. Read Audio Bytes
-            val audioBytes = readAudioBytes(audioPath)
-            val audioRequestBody = audioBytes.toRequestBody("audio/m4a".toMediaTypeOrNull())
-            val audioPart = MultipartBody.Part.createFormData("audio", "recording.m4a", audioRequestBody)
-
-            // 3. Language parameter
-            val langRequestBody = language.code.toRequestBody("text/plain".toMediaTypeOrNull())
-
-            onStageUpdate(ProcessingStage.ENHANCING_IMAGE)
-            delay(400) // Brief UI tick for visual progression
-            onStageUpdate(ProcessingStage.CATEGORISING)
-
-            val response = api.processListing(
-                photo = photoPart,
-                audio = audioPart,
-                language = langRequestBody
-            )
-
-            onStageUpdate(ProcessingStage.GENERATING_LISTING)
-
-            if (response.isSuccessful && response.body() != null) {
-                val body = response.body()!!
-                if (body.success && body.listing != null) {
-                    onStageUpdate(ProcessingStage.COMPLETED)
-                    val listing = body.listing
-                    val category = CraftCategory.fromString(listing.category)
-
-                    return@withContext ProcessResponse(
-                        requestId = body.request_id,
-                        transcript = body.transcript ?: "",
-                        category = category,
-                        categoryConfidence = body.category?.confidence ?: 0.9f,
-                        originalImageUrl = body.original_image_url ?: photoUri,
-                        enhancedImageUrl = body.enhanced_image_url ?: photoUri,
-                        imageWarning = body.image_warning,
-                        title = listing.title,
-                        description = listing.description,
-                        tags = listing.tags,
-                        suggestedPrice = listing.suggested_price
-                    )
-                } else {
-                    val err = body.error?.message ?: "Backend returned unsuccessful response"
-                    Log.w("NetworkApiService", "API Error: $err. Engaging resilient demo fallback.")
-                    return@withContext fallbackMock.processListing(photoUri, audioPath, language, onStageUpdate)
-                }
-            } else {
-                Log.w("NetworkApiService", "HTTP ${response.code()}: Engaging resilient fallback.")
-                return@withContext fallbackMock.processListing(photoUri, audioPath, language, onStageUpdate)
-            }
-        } catch (e: Exception) {
-            Log.w("NetworkApiService", "Network exception: ${e.message}. Using resilient fallback for demo continuity.")
-            // Graceful fallback to guarantee artisan flow does not break if backend server is not running
-            return@withContext fallbackMock.processListing(photoUri, audioPath, language, onStageUpdate)
-        }
+        val image = bytes(photoUri)
+        val png = image.size > 4 && image[0] == 0x89.toByte() && image[1] == 0x50.toByte()
+        val response = body(api.processListing(
+            MultipartBody.Part.createFormData("photo", if (png) "product.png" else "product.jpg",
+                image.toRequestBody((if (png) "image/png" else "image/jpeg").toMediaType())),
+            audio(audioPath), language.code.toRequestBody("text/plain".toMediaType())))
+        require(response.success) { response.error?.message ?: "Could not generate this listing." }
+        val listing = requireNotNull(response.listing)
+        ProcessResponse(response.request_id, response.transcript.orEmpty(), CraftCategory.fromString(listing.category),
+            response.category?.confidence ?: 0f, requireNotNull(response.original_image_url),
+            response.enhanced_image_url ?: requireNotNull(response.original_image_url), response.image_warning,
+            listing.title, listing.description, listing.tags, listing.suggested_price, response.market_data, listing.attributes)
     }
-
-    override suspend fun confirmListing(product: Product): String = withContext(Dispatchers.IO) {
-        try {
-            val request = ConfirmListingApiRequest(
-                artisan_id = null,
-                original_image_url = product.originalImageUrl ?: product.imageUrl,
-                enhanced_image_url = product.imageUrl,
-                image_warning = false,
-                transcript = product.voiceTranscript,
-                title = product.title,
-                description = product.description,
-                category = product.category.displayName,
-                tags = product.tags,
-                final_price = product.finalPrice,
-                suggested_price = product.suggestedPrice
-            )
-
-            val response = api.confirmListing(request)
-            if (response.isSuccessful && response.body()?.success == true) {
-                return@withContext response.body()?.product_id ?: product.id
-            } else {
-                Log.w("NetworkApiService", "Confirm returned ${response.code()}, saving locally.")
-                return@withContext product.id
-            }
-        } catch (e: Exception) {
-            Log.w("NetworkApiService", "Confirm failed over network: ${e.message}, saved locally.")
-            return@withContext product.id
-        }
+    override suspend fun confirmListing(product: Product): String {
+        val p = product
+        val publicProfile = p.publicProfile.copy(email = "", photo = "",
+            contact = if (p.publicProfile.contact_public) p.publicProfile.contact else "")
+        val result = body(api.confirmListing(owner, ConfirmListingApiRequest(p.id, p.originalImageUrl, p.imageUrl,
+            p.imageWarning, p.voiceTranscript, p.title, p.description, p.category.displayName, p.tags,
+            p.finalPrice, p.suggestedPrice, p.attributes, p.marketData, p.languageCode, publicProfile,
+            if (p.status == ListingStatus.ARCHIVED) "archived" else "saved")))
+        check(result.success && result.product_id == p.id) { "Cloud save was not confirmed." }
+        return requireNotNull(result.product_id)
     }
-
-    private fun readBytesFromUri(uriString: String): ByteArray {
-        return try {
-            if (uriString.startsWith("content://") || uriString.startsWith("file://")) {
-                val uri = Uri.parse(uriString)
-                val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-                inputStream?.use { it.readBytes() } ?: createDummyImageBytes()
-            } else {
-                val file = File(uriString)
-                if (file.exists() && file.length() > 0) {
-                    file.readBytes()
-                } else {
-                    createDummyImageBytes()
-                }
-            }
-        } catch (e: Exception) {
-            createDummyImageBytes()
-        }
+    override suspend fun catalog() = body(api.catalog(owner)).products.map { it.toProduct() }
+    override suspend fun discover(offset: Int) = body(api.discover(offset)).products.map { it.toProduct() }
+    override suspend fun delete(product: Product) { body(api.delete(owner, product.id)) }
+    override suspend fun assist(product: Product, instruction: String, language: AppLanguage): Product {
+        val p = product
+        val result = body(api.assist(AssistApiRequest(ListingApiDto(p.title, p.description,
+            p.category.displayName, p.tags, p.suggestedPrice, p.attributes), instruction, language.code))).listing
+        return p.copy(title = result.title, description = result.description, category = CraftCategory.fromString(result.category),
+            tags = result.tags, suggestedPrice = result.suggested_price, attributes = result.attributes)
     }
-
-    private fun readAudioBytes(audioPath: String?): ByteArray {
-        if (audioPath == null) return createDummyAudioBytes()
-        return try {
-            val file = File(audioPath)
-            if (file.exists() && file.length() > 0) {
-                file.readBytes()
-            } else {
-                createDummyAudioBytes()
-            }
-        } catch (e: Exception) {
-            createDummyAudioBytes()
-        }
-    }
-
-    private fun createDummyImageBytes(): ByteArray {
-        // Minimal valid 1x1 JPEG byte stream
-        return byteArrayOf(
-            0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(),
-            0x00.toByte(), 0x10.toByte(), 0x4A.toByte(), 0x46.toByte(),
-            0x49.toByte(), 0x46.toByte(), 0x00.toByte(), 0x01.toByte(),
-            0x01.toByte(), 0x01.toByte(), 0x00.toByte(), 0x48.toByte(),
-            0x00.toByte(), 0x48.toByte(), 0x00.toByte(), 0x00.toByte(),
-            0xFF.toByte(), 0xDB.toByte(), 0x00.toByte(), 0x43.toByte(),
-            0x00.toByte(), 0xFF.toByte(), 0xC0.toByte(), 0x00.toByte(),
-            0x0B.toByte(), 0x08.toByte(), 0x00.toByte(), 0x01.toByte(),
-            0x00.toByte(), 0x01.toByte(), 0x01.toByte(), 0x01.toByte(),
-            0x11.toByte(), 0x00.toByte(), 0xFF.toByte(), 0xC4.toByte(),
-            0x00.toByte(), 0x1F.toByte(), 0x00.toByte(), 0x00.toByte(),
-            0x01.toByte(), 0x05.toByte(), 0x01.toByte(), 0x01.toByte(),
-            0x01.toByte(), 0x01.toByte(), 0x01.toByte(), 0x01.toByte(),
-            0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(),
-            0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(),
-            0xFF.toByte(), 0xDA.toByte(), 0x00.toByte(), 0x08.toByte(),
-            0x01.toByte(), 0x01.toByte(), 0x00.toByte(), 0x00.toByte(),
-            0x3F.toByte(), 0x00.toByte(), 0x7F.toByte(), 0xFF.toByte(),
-            0xD9.toByte()
-        )
-    }
-
-    private fun createDummyAudioBytes(): ByteArray {
-        // Minimal valid 16kHz mono WAV header with 0.1s PCM data
-        val out = ByteArrayOutputStream()
-        val numSamples = 1600
-        val dataSize = numSamples * 2
-        val chunkSize = 36 + dataSize
-
-        out.write("RIFF".toByteArray())
-        out.write(byteArrayOf((chunkSize and 0xff).toByte(), ((chunkSize shr 8) and 0xff).toByte(), ((chunkSize shr 16) and 0xff).toByte(), ((chunkSize shr 24) and 0xff).toByte()))
-        out.write("WAVEfmt ".toByteArray())
-        out.write(byteArrayOf(16, 0, 0, 0, 1, 0, 1, 0)) // PCM, mono
-        out.write(byteArrayOf((16000 and 0xff).toByte(), ((16000 shr 8) and 0xff).toByte(), 0, 0)) // 16000 Hz
-        out.write(byteArrayOf((32000 and 0xff).toByte(), ((32000 shr 8) and 0xff).toByte(), 0, 0)) // Byte rate
-        out.write(byteArrayOf(2, 0, 16, 0)) // Block align 2, 16 bps
-        out.write("data".toByteArray())
-        out.write(byteArrayOf((dataSize and 0xff).toByte(), ((dataSize shr 8) and 0xff).toByte(), ((dataSize shr 16) and 0xff).toByte(), ((dataSize shr 24) and 0xff).toByte()))
-        out.write(ByteArray(dataSize))
-        return out.toByteArray()
-    }
+    override suspend fun voiceEdit(path: String, language: AppLanguage) = body(api.voiceEdit(audio(path),
+        language.code.toRequestBody("text/plain".toMediaType()))).transcript
+    override suspend fun readAloud(text: String, language: AppLanguage) = body(api.tts(TtsApiRequest(text.take(500), language.code))).bytes()
 }

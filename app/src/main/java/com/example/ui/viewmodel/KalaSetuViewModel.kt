@@ -2,470 +2,306 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.core.data.KalaSetuDatabase
-import com.example.core.data.KalaSetuRepository
-import com.example.core.data.OfflineQueueEntity
-import com.example.core.model.AppLanguage
-import com.example.core.model.CraftCategory
-import com.example.core.model.ListingStatus
-import com.example.core.model.ProcessResponse
-import com.example.core.model.ProcessingStage
-import com.example.core.model.Product
+import com.example.core.data.*
+import com.example.core.model.*
 import com.example.core.network.NetworkApiService
-import com.example.core.service.ApiService
-import com.example.core.service.AudioPlayerService
-import com.example.core.service.AudioRecordingService
-import com.example.core.service.MockApiService
-import com.example.core.service.TextToSpeechService
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
+import com.example.core.service.*
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import java.io.File
 import java.util.UUID
 
-class KalaSetuViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val prefs: SharedPreferences =
-        application.getSharedPreferences("kalasetu_prefs", Context.MODE_PRIVATE)
-
-    private val repository: KalaSetuRepository
-    private val apiService: ApiService = NetworkApiService(application)
+class KalaSetuViewModel @JvmOverloads constructor(application: Application, private val apiService: ApiService = NetworkApiService(application), private val backgroundSync: Boolean = true) : AndroidViewModel(application) {
+    private val prefs = application.getSharedPreferences("kalasetu_prefs", Context.MODE_PRIVATE)
+    private val repository = KalaSetuRepository(KalaSetuDatabase.getDatabase(application))
+    private val sync = SyncEngine(repository, apiService)
     private val recordingService = AudioRecordingService(application)
     private val playerService = AudioPlayerService()
     private val ttsService = TextToSpeechService(application)
-
-    init {
-        val db = KalaSetuDatabase.getDatabase(application)
-        repository = KalaSetuRepository(db.productDao(), db.offlineQueueDao())
-
-        // Preload initial authentic craft listings
-        viewModelScope.launch {
-            repository.ensureInitialData()
-        }
-    }
-
-    // 1. Language & Onboarding State
-    private val _currentLanguage = MutableStateFlow(loadSavedLanguage())
-    val currentLanguage: StateFlow<AppLanguage> = _currentLanguage.asStateFlow()
-
-    private val _tutorialSeen = MutableStateFlow(prefs.getBoolean("tutorial_seen", false))
-    val tutorialSeen: StateFlow<Boolean> = _tutorialSeen.asStateFlow()
-
-    // 2. Connectivity State (real network + demo toggle)
-    private val _isOnline = MutableStateFlow(checkInitialConnectivity(application))
-    val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
-
-    // 3. Catalog & Offline Queue State
-    val products: StateFlow<List<Product>> = repository.allProducts
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val offlineQueue: StateFlow<List<OfflineQueueEntity>> = repository.offlineQueue
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // 4. Capture Screen State
-    private val _capturedImageUri = MutableStateFlow<String?>(null)
-    val capturedImageUri: StateFlow<String?> = _capturedImageUri.asStateFlow()
-
-    private val _recordedAudioPath = MutableStateFlow<String?>(null)
-    val recordedAudioPath: StateFlow<String?> = _recordedAudioPath.asStateFlow()
-
-    private val _isRecording = MutableStateFlow(false)
-    val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
-
-    private val _recordingDurationSeconds = MutableStateFlow(0)
-    val recordingDurationSeconds: StateFlow<Int> = _recordingDurationSeconds.asStateFlow()
-
-    private val _isPlayingAudio = MutableStateFlow(false)
-    val isPlayingAudio: StateFlow<Boolean> = _isPlayingAudio.asStateFlow()
-
+    private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+    private val profileAdapter = moshi.adapter(ArtisanProfile::class.java)
+    private val preferencesAdapter = moshi.adapter(AppPreferences::class.java)
+    private val connectivity = application.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val products = repository.allProducts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val offlineQueue = repository.offlineQueue.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val currentLanguage = MutableStateFlow(AppLanguage.entries.find { it.code == prefs.getString("selected_language", "te") } ?: AppLanguage.TELUGU)
+    val tutorialSeen = MutableStateFlow(prefs.getBoolean("tutorial_seen", false))
+    val isOnline = MutableStateFlow(checkConnectivity())
+    val profile = MutableStateFlow(runCatching { profileAdapter.fromJson(prefs.getString("profile", "{}")!!) }.getOrNull() ?: ArtisanProfile())
+    val preferences = MutableStateFlow(runCatching { preferencesAdapter.fromJson(prefs.getString("preferences", "{}")!!) }.getOrNull() ?: AppPreferences())
+    val isVoiceGuideEnabled = MutableStateFlow(prefs.getBoolean("voice_guide_enabled", false))
+    val capturedImageUri = MutableStateFlow(prefs.getString("capture_photo", null))
+    val recordedAudioPath = MutableStateFlow(prefs.getString("capture_audio", null))
+    val isRecording = MutableStateFlow(false)
+    val recordingDurationSeconds = MutableStateFlow(0)
+    val isPlayingAudio = MutableStateFlow(false)
+    val processingStage = MutableStateFlow(ProcessingStage.TRANSCRIBING)
+    val isProcessing = MutableStateFlow(false)
+    val processingError = MutableStateFlow<String?>(null)
+    val currentDraft = MutableStateFlow<Product?>(null)
+    val busy = MutableStateFlow(false)
+    val message = MutableStateFlow<String?>(null)
+    val discovery = MutableStateFlow<List<Product>>(emptyList())
+    val discoveryLoading = MutableStateFlow(false)
+    val discoveryError = MutableStateFlow<String?>(null)
+    val discoveryHasMore = MutableStateFlow(true)
+    val assistantProposal = MutableStateFlow<Product?>(null)
+    val favorites = MutableStateFlow(prefs.getStringSet("favorites", emptySet())!!.toSet())
+    private var captureId = prefs.getString("capture_id", null) ?: UUID.randomUUID().toString()
     private var recordingTimerJob: Job? = null
-
-    // 5. Processing Screen State
-    private val _processingStage = MutableStateFlow(ProcessingStage.TRANSCRIBING)
-    val processingStage: StateFlow<ProcessingStage> = _processingStage.asStateFlow()
-
-    private val _isProcessing = MutableStateFlow(false)
-    val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
-
-    private val _processingError = MutableStateFlow<String?>(null)
-    val processingError: StateFlow<String?> = _processingError.asStateFlow()
-
-    // 6. Review Screen State
-    private val _currentDraft = MutableStateFlow<Product?>(null)
-    val currentDraft: StateFlow<Product?> = _currentDraft.asStateFlow()
-
-    // 7. Extra Artisan Features: Voice Guide & Profile
-    private val _isVoiceGuideEnabled = MutableStateFlow(prefs.getBoolean("voice_guide_enabled", false))
-    val isVoiceGuideEnabled: StateFlow<Boolean> = _isVoiceGuideEnabled.asStateFlow()
-
-    private val _artisanName = MutableStateFlow(prefs.getString("artisan_name", "Lakshmi Devi") ?: "Lakshmi Devi")
-    val artisanName: StateFlow<String> = _artisanName.asStateFlow()
-
-    private val _artisanCraftSpecialty = MutableStateFlow(prefs.getString("artisan_specialty", "Master Potter & Clay Sculptor") ?: "Master Potter & Clay Sculptor")
-    val artisanCraftSpecialty: StateFlow<String> = _artisanCraftSpecialty.asStateFlow()
-
-    private val _artisanLocation = MutableStateFlow(prefs.getString("artisan_location", "Pochampally, Telangana") ?: "Pochampally, Telangana")
-    val artisanLocation: StateFlow<String> = _artisanLocation.asStateFlow()
-
-    private val _artisanPhone = MutableStateFlow(prefs.getString("artisan_phone", "+91 98480 12345") ?: "+91 98480 12345")
-    val artisanPhone: StateFlow<String> = _artisanPhone.asStateFlow()
-
-    private fun loadSavedLanguage(): AppLanguage {
-        val code = prefs.getString("selected_language", "te") ?: "te"
-        return AppLanguage.entries.find { it.code == code } ?: AppLanguage.TELUGU
+    private var voiceEditing = false
+    private var voiceEditAudioPath: String? = null
+    private var draftSaveJob: Job? = null
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { updateConnectivity() }
+        override fun onLost(network: Network) { updateConnectivity() }
     }
-
-    private fun checkInitialConnectivity(context: Context): Boolean {
-        return try {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork ?: return true // default optimistic
-            val caps = cm.getNetworkCapabilities(network) ?: return true
-            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        } catch (e: Exception) {
-            true
+    init {
+        runCatching { connectivity.registerDefaultNetworkCallback(networkCallback) }
+        viewModelScope.launch { repository.recoverInterrupted(); scheduleSync() }
+    }
+    private fun checkConnectivity(): Boolean = runCatching {
+        connectivity.getNetworkCapabilities(connectivity.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    }.getOrDefault(false)
+    private fun updateConnectivity() {
+        isOnline.value = checkConnectivity()
+        if (isOnline.value) scheduleSync()
+    }
+    private fun scheduleSync() { if (backgroundSync) CatalogSyncWorker.schedule(getApplication()) }
+    fun setLanguage(language: AppLanguage) { currentLanguage.value = language; prefs.edit().putString("selected_language", language.code).apply() }
+    fun completeOnboarding() { tutorialSeen.value = true; prefs.edit().putBoolean("tutorial_seen", true).apply() }
+    fun resetOnboarding() { tutorialSeen.value = false; prefs.edit().putBoolean("tutorial_seen", false).apply() }
+    fun toggleVoiceGuide() { isVoiceGuideEnabled.value = !isVoiceGuideEnabled.value; prefs.edit().putBoolean("voice_guide_enabled", isVoiceGuideEnabled.value).apply() }
+    fun speakGuidance(text: String) { if (isVoiceGuideEnabled.value) ttsService.speak(text, currentLanguage.value, preferences.value.speechSpeed) }
+    fun updateProfile(value: ArtisanProfile) { profile.value = value; prefs.edit().putString("profile", profileAdapter.toJson(value)).apply() }
+    fun updatePreferences(value: AppPreferences) {
+        preferences.value = value
+        prefs.edit().putString("preferences", preferencesAdapter.toJson(value))
+            .putBoolean("notify_processing", value.processingNotifications).putBoolean("notify_sync", value.syncNotifications)
+            .putBoolean("notify_error", value.errorNotifications).apply()
+    }
+    fun setProfilePhoto(uri: String) = action { updateProfile(profile.value.copy(photo = copyMedia(uri, "profile"))) }
+    private suspend fun copyMedia(uri: String, prefix: String): String = withContext(Dispatchers.IO) {
+        val directory = File(getApplication<Application>().filesDir, "media").apply { mkdirs() }
+        val file = File(directory, "${prefix}_${UUID.randomUUID()}.jpg")
+        getApplication<Application>().contentResolver.openInputStream(Uri.parse(uri)).use { input ->
+            requireNotNull(input) { "Photo unavailable" }
+            file.outputStream().use { output -> input.copyTo(output) }
+        }
+        file.toURI().toString()
+    }
+    fun setCapturedPhoto(uri: String) = action {
+        capturedImageUri.value = copyMedia(uri, "product")
+        persistCapture()
+    }
+    private suspend fun persistCapture() {
+        prefs.edit().putString("capture_id", captureId).putString("capture_photo", capturedImageUri.value)
+            .putString("capture_audio", recordedAudioPath.value).apply()
+        if (capturedImageUri.value != null) {
+            repository.saveProduct(Product(captureId, "", "", CraftCategory.OTHER, emptyList(),
+                localImageUri = capturedImageUri.value, suggestedPrice = 0.0, finalPrice = 0.0,
+                status = ListingStatus.DRAFT, languageCode = currentLanguage.value.code, captureAudioPath = recordedAudioPath.value))
         }
     }
-
-    // Actions
-    fun setLanguage(language: AppLanguage) {
-        _currentLanguage.value = language
-        prefs.edit().putString("selected_language", language.code).apply()
-        if (_isVoiceGuideEnabled.value) {
-            val msg = when (language) {
-                AppLanguage.TELUGU -> "భాష తెలుగుకు మార్చబడింది."
-                AppLanguage.HINDI -> "भाषा हिंदी में बदल दी गई है।"
-                AppLanguage.ENGLISH -> "Language changed to English."
-            }
-            ttsService.speak(msg, language)
-        }
-    }
-
-    fun toggleVoiceGuide() {
-        val next = !_isVoiceGuideEnabled.value
-        _isVoiceGuideEnabled.value = next
-        prefs.edit().putBoolean("voice_guide_enabled", next).apply()
-        val announcement = if (next) {
-            when (_currentLanguage.value) {
-                AppLanguage.TELUGU -> "వాయిస్ అసిస్టెంట్ గైడ్ ప్రారంభించబడింది."
-                AppLanguage.HINDI -> "वॉइस गाइड चालू कर दिया गया है।"
-                AppLanguage.ENGLISH -> "Voice guidance assistant enabled."
-            }
-        } else {
-            when (_currentLanguage.value) {
-                AppLanguage.TELUGU -> "వాయిస్ గైడ్ ఆపివేయబడింది."
-                AppLanguage.HINDI -> "वॉइस गाइड बंद कर दिया गया है।"
-                AppLanguage.ENGLISH -> "Voice guidance assistant disabled."
-            }
-        }
-        ttsService.speak(announcement, _currentLanguage.value)
-    }
-
-    fun speakGuidance(text: String) {
-        if (_isVoiceGuideEnabled.value) {
-            ttsService.speak(text, _currentLanguage.value)
-        }
-    }
-
-    fun updateArtisanProfile(name: String, specialty: String, location: String, phone: String) {
-        _artisanName.value = name
-        _artisanCraftSpecialty.value = specialty
-        _artisanLocation.value = location
-        _artisanPhone.value = phone
-        prefs.edit()
-            .putString("artisan_name", name)
-            .putString("artisan_specialty", specialty)
-            .putString("artisan_location", location)
-            .putString("artisan_phone", phone)
-            .apply()
-    }
-
-    fun deleteProduct(id: String, onDeleted: (() -> Unit)? = null) {
-        viewModelScope.launch {
-            repository.deleteProduct(id)
-            if (_isVoiceGuideEnabled.value) {
-                val announcement = when (_currentLanguage.value) {
-                    AppLanguage.TELUGU -> "ఉత్పత్తి తొలగించబడింది."
-                    AppLanguage.HINDI -> "उत्पाद हटा दिया गया है।"
-                    AppLanguage.ENGLISH -> "Product has been deleted."
-                }
-                ttsService.speak(announcement, _currentLanguage.value)
-            }
-            onDeleted?.invoke()
-        }
-    }
-
-    fun completeOnboarding() {
-        _tutorialSeen.value = true
-        prefs.edit().putBoolean("tutorial_seen", true).apply()
-    }
-
-    fun resetOnboarding() {
-        _tutorialSeen.value = false
-        prefs.edit().putBoolean("tutorial_seen", false).apply()
-    }
-
-    fun toggleOnlineStatus() {
-        val newState = !_isOnline.value
-        _isOnline.value = newState
-        if (newState) {
-            syncOfflineQueue()
-        }
-    }
-
-    fun setCapturedPhoto(uri: String) {
-        _capturedImageUri.value = uri
-    }
-
-    fun startRecording() {
-        if (_isRecording.value) return
-        recordingService.startRecording()
-        _isRecording.value = true
-        _recordingDurationSeconds.value = 0
-
-        recordingTimerJob?.cancel()
+    fun startRecording(forVoiceEdit: Boolean = false) {
+        if (isRecording.value) return
+        voiceEditing = forVoiceEdit
+        if (!recordingService.startRecording()) { message.value = "Microphone unavailable. Allow microphone access and try again."; return }
+        isRecording.value = true
+        if (forVoiceEdit) voiceEditAudioPath = null else recordedAudioPath.value = null
+        recordingDurationSeconds.value = 0
         recordingTimerJob = viewModelScope.launch {
-            while (_isRecording.value) {
-                delay(1000)
-                _recordingDurationSeconds.value += 1
+            while (isRecording.value) {
+                delay(1000); recordingDurationSeconds.value++
+                if (recordingDurationSeconds.value >= 29) stopRecording()
             }
         }
     }
-
+    fun startVoiceEditRecording() { startRecording(forVoiceEdit = true) }
     fun stopRecording() {
-        if (!_isRecording.value) return
+        if (!isRecording.value) return
         val path = recordingService.stopRecording()
-        _isRecording.value = false
+        if (voiceEditing) voiceEditAudioPath = path else recordedAudioPath.value = path
+        isRecording.value = false
         recordingTimerJob?.cancel()
-        _recordedAudioPath.value = path ?: "simulated_audio.m4a"
+        if (path == null) message.value = "Recording was too short or failed. Please try again."
+        if (!voiceEditing) viewModelScope.launch { persistCapture() }
     }
-
     fun clearRecording() {
-        playerService.stopAudio()
-        _isPlayingAudio.value = false
-        _recordedAudioPath.value = null
-        _recordingDurationSeconds.value = 0
+        playerService.stopAudio(); isPlayingAudio.value = false
+        recordedAudioPath.value = null; recordingDurationSeconds.value = 0
+        viewModelScope.launch { persistCapture() }
     }
-
-    fun playRecordedAudio() {
-        val path = _recordedAudioPath.value ?: return
-        _isPlayingAudio.value = true
-        playerService.playAudio(path) {
-            _isPlayingAudio.value = false
+    fun playRecordedAudio() { recordedAudioPath.value?.let { isPlayingAudio.value = true; playerService.playAudio(it) { isPlayingAudio.value = false } } }
+    fun canGenerateListing() = capturedImageUri.value != null && recordedAudioPath.value != null && !isRecording.value
+    fun triggerGenerateListing(onNavigateToProcessing: () -> Unit, onNavigateToCatalog: () -> Unit) {
+        if (!canGenerateListing() || isProcessing.value) return
+        viewModelScope.launch {
+            val photo = capturedImageUri.value ?: return@launch
+            val audio = recordedAudioPath.value ?: return@launch
+            val product = Product(captureId, "", "", CraftCategory.OTHER, emptyList(), localImageUri = photo,
+                suggestedPrice = 0.0, finalPrice = 0.0, status = ListingStatus.PENDING_UPLOAD,
+                languageCode = currentLanguage.value.code, captureAudioPath = audio)
+            repository.enqueue(product, OfflineQueueEntity(captureId, photo, audio, currentLanguage.value.code,
+                product.createdAt, "queued", 0, null))
+            if (isOnline.value) { onNavigateToProcessing(); executeProcessingPipeline() }
+            else { scheduleSync(); clearCaptureForm(); onNavigateToCatalog() }
         }
     }
-
-    fun canGenerateListing(): Boolean {
-        return _capturedImageUri.value != null && _recordedAudioPath.value != null
-    }
-
-    fun triggerGenerateListing(
-        onNavigateToProcessing: () -> Unit,
-        onNavigateToCatalog: () -> Unit
-    ) {
-        val photo = _capturedImageUri.value ?: return
-        val audio = _recordedAudioPath.value
-
-        if (_isOnline.value) {
-            // Online flow -> Processing screen
-            onNavigateToProcessing()
-            executeProcessingPipeline()
-        } else {
-            // Offline flow -> Queue to Room & add pending item to catalog
-            viewModelScope.launch {
-                val queueItem = OfflineQueueEntity(
-                    id = UUID.randomUUID().toString(),
-                    photoUri = photo,
-                    audioPath = audio,
-                    languageCode = _currentLanguage.value.code,
-                    createdAt = System.currentTimeMillis(),
-                    status = "queued",
-                    retryCount = 0,
-                    lastError = null
-                )
-                repository.enqueueOfflineItem(queueItem)
-
-                // Add to catalog with Pending Upload status
-                val pendingProduct = Product(
-                    id = queueItem.id,
-                    title = "Pending Handcrafted Listing",
-                    description = "Captured offline. Will synchronize and generate AI listing once connected.",
-                    category = CraftCategory.POTTERY,
-                    tags = listOf("Offline", "Pending Upload"),
-                    localImageUri = photo,
-                    suggestedPrice = 850.0,
-                    finalPrice = 850.0,
-                    status = ListingStatus.PENDING_UPLOAD,
-                    createdAt = System.currentTimeMillis()
-                )
-                repository.saveProduct(pendingProduct)
-
-                // Reset capture form
-                clearCaptureForm()
-                onNavigateToCatalog()
-            }
-        }
-    }
-
     fun executeProcessingPipeline() {
-        val photo = _capturedImageUri.value ?: return
-        val audio = _recordedAudioPath.value
-
-        _isProcessing.value = true
-        _processingError.value = null
-
+        if (isProcessing.value) return
+        isProcessing.value = true; currentDraft.value = null; processingError.value = null
+        processingStage.value = ProcessingStage.TRANSCRIBING
         viewModelScope.launch {
             try {
-                val response: ProcessResponse = apiService.processListing(
-                    photoUri = photo,
-                    audioPath = audio,
-                    language = _currentLanguage.value,
-                    onStageUpdate = { stage ->
-                        _processingStage.value = stage
-                    }
-                )
-
-                // Populate Draft for Review & Edit
-                _currentDraft.value = Product(
-                    id = response.requestId,
-                    title = response.title,
-                    description = response.description,
-                    category = response.category,
-                    tags = response.tags,
-                    localImageUri = photo,
-                    originalImageUrl = response.originalImageUrl,
-                    imageUrl = response.enhancedImageUrl,
-                    voiceTranscript = response.transcript,
-                    suggestedPrice = response.suggestedPrice,
-                    finalPrice = response.suggestedPrice,
-                    status = ListingStatus.DRAFT,
-                    createdAt = System.currentTimeMillis()
-                )
-
-                _isProcessing.value = false
+                currentDraft.value = sync.process(captureId) { stage -> processingStage.value = stage }
+                clearCaptureForm()
+                processingStage.value = ProcessingStage.COMPLETED
             } catch (e: Exception) {
-                _processingStage.value = ProcessingStage.FAILED
-                _processingError.value = "Processing failed: ${e.message}"
-                _isProcessing.value = false
-            }
+                if (e is CancellationException) throw e
+                processingError.value = "Could not create this listing. Your photo and recording are saved. Retry or open the sync center."
+                processingStage.value = ProcessingStage.FAILED
+            } finally { isProcessing.value = false }
         }
     }
-
     fun setDraftForReview(product: Product) {
-        _currentDraft.value = product
+        currentDraft.value = product
+        assistantProposal.value = null
     }
-
-    // Review & Edit updates
-    fun updateDraftTitle(newTitle: String) {
-        _currentDraft.value = _currentDraft.value?.copy(title = newTitle)
+    fun resumeCapture(product: Product) {
+        captureId = product.id; capturedImageUri.value = product.localImageUri
+        recordedAudioPath.value = product.captureAudioPath
+        currentLanguage.value = AppLanguage.entries.find { it.code == product.languageCode } ?: currentLanguage.value
     }
-
-    fun updateDraftDescription(newDesc: String) {
-        _currentDraft.value = _currentDraft.value?.copy(description = newDesc)
+    private fun edit(transform: (Product) -> Product) {
+        val draft = currentDraft.value ?: return
+        val next = transform(draft).copy(updatedAt = maxOf(System.currentTimeMillis(), draft.updatedAt + 1), status = ListingStatus.DRAFT)
+        currentDraft.value = next
+        draftSaveJob?.cancel()
+        draftSaveJob = viewModelScope.launch { repository.saveProduct(next) }
     }
-
-    fun updateDraftCategory(newCategory: CraftCategory) {
-        _currentDraft.value = _currentDraft.value?.copy(category = newCategory)
-    }
-
-    fun updateDraftPrice(newPrice: Double) {
-        _currentDraft.value = _currentDraft.value?.copy(finalPrice = newPrice)
-    }
-
-    fun addDraftTag(tag: String) {
-        val current = _currentDraft.value ?: return
-        if (tag.isNotBlank() && !current.tags.contains(tag)) {
-            _currentDraft.value = current.copy(tags = current.tags + tag)
+    fun updateDraftTitle(value: String) = edit { it.copy(title = value) }
+    fun updateDraftTags(value: List<String>) = edit { it.copy(tags = value.distinct()) }
+    fun updateDraftDescription(value: String) = edit { it.copy(description = value) }
+    fun updateDraftCategory(value: CraftCategory) = edit { it.copy(category = value) }
+    fun updateDraftPrice(value: Double) = edit { it.copy(finalPrice = value) }
+    fun addDraftTag(value: String) = edit { it.copy(tags = (it.tags + value.trim()).filter(String::isNotBlank).distinct()) }
+    fun removeDraftTag(value: String) = edit { it.copy(tags = it.tags - value) }
+    fun updateDraftAttributes(value: Map<String, String>) = edit { it.copy(attributes = value) }
+    fun saveDraft() = action { currentDraft.value?.let { repository.saveProduct(it) }; message.value = "Draft saved on this device." }
+    fun confirmListing(onComplete: () -> Unit) {
+        val draft = currentDraft.value ?: return
+        if (busy.value || draft.qualityIssues().isNotEmpty()) { message.value = draft.qualityIssues().firstOrNull(); return }
+        busy.value = true
+        viewModelScope.launch {
+            draftSaveJob?.join()
+            try {
+                sync.confirm(draft.copy(publicProfile = profile.value))
+                clearCaptureForm(); currentDraft.value = null; onComplete()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                message.value = "Cloud save failed. Your reviewed listing is pending sync and will retry."
+                scheduleSync()
+            } finally { busy.value = false }
         }
     }
-
-    fun removeDraftTag(tag: String) {
-        val current = _currentDraft.value ?: return
-        _currentDraft.value = current.copy(tags = current.tags.filter { it != tag })
+    fun syncOfflineQueue() = action {
+        repository.queueItems().forEach { repository.enqueueOfflineItem(it.copy(status = "queued", retryCount = 0)) }
+        scheduleSync(); message.value = "Sync scheduled. Connect to the internet to continue."
     }
-
-    fun readListingAloud() {
-        val draft = _currentDraft.value ?: return
-        val textToSpeak = "${draft.title}. ${draft.category.displayName}. ${draft.description}. Price: ${draft.finalPrice.toInt()} rupees."
-        ttsService.speak(textToSpeak, _currentLanguage.value)
+    fun retryProduct(product: Product) = action {
+        repository.queueItems().find { it.id == product.id }?.let { repository.enqueueOfflineItem(it.copy(status = "queued", retryCount = 0)) }
+        scheduleSync()
     }
-
-    fun confirmListing(onComplete: () -> Unit) {
-        val draft = _currentDraft.value ?: return
+    fun refreshCatalog() = action {
+        apiService.catalog().forEach { remote ->
+            val local = repository.getProduct(remote.id)
+            if (local == null || (local.status in listOf(ListingStatus.SAVED, ListingStatus.ARCHIVED) && remote.updatedAt > local.updatedAt))
+                repository.saveProduct(remote.copy(localImageUri = local?.localImageUri, isFavorite = local?.isFavorite ?: false))
+        }
+    }
+    fun loadDiscovery(more: Boolean = false) {
+        if (discoveryLoading.value) return
+        discoveryLoading.value = true; discoveryError.value = null
         viewModelScope.launch {
             try {
-                val remoteId = apiService.confirmListing(draft)
-                val confirmedProduct = draft.copy(id = remoteId, status = ListingStatus.SAVED)
-                repository.saveProduct(confirmedProduct)
+                val page = apiService.discover(if (more) discovery.value.size else 0)
+                discovery.value = (if (more) discovery.value + page else page).distinctBy { it.id }
+                discoveryHasMore.value = page.size == 50
             } catch (e: Exception) {
-                android.util.Log.w("KalaSetuViewModel", "Confirm remote sync warning: ${e.message}, saving locally.")
-                val confirmedProduct = draft.copy(status = ListingStatus.SAVED)
-                repository.saveProduct(confirmedProduct)
-            }
-            clearCaptureForm()
-            _currentDraft.value = null
-            onComplete()
+                if (e is CancellationException) throw e
+                discoveryError.value = "Marketplace is unavailable. Check your connection and retry."
+            } finally { discoveryLoading.value = false }
         }
     }
-
-    fun syncOfflineQueue() {
-        viewModelScope.launch {
-            val items = offlineQueue.value
-            for (item in items) {
-                try {
-                    val lang = AppLanguage.entries.find { it.code == item.languageCode } ?: AppLanguage.TELUGU
-                    val response = apiService.processListing(
-                        photoUri = item.photoUri,
-                        audioPath = item.audioPath,
-                        language = lang,
-                        onStageUpdate = {}
-                    )
-                    val confirmedProduct = Product(
-                        id = response.requestId,
-                        title = response.title,
-                        description = response.description,
-                        category = response.category,
-                        tags = response.tags,
-                        localImageUri = item.photoUri,
-                        originalImageUrl = response.originalImageUrl,
-                        imageUrl = response.enhancedImageUrl,
-                        voiceTranscript = response.transcript,
-                        suggestedPrice = response.suggestedPrice,
-                        finalPrice = response.suggestedPrice,
-                        status = ListingStatus.SAVED,
-                        createdAt = System.currentTimeMillis()
-                    )
-                    apiService.confirmListing(confirmedProduct)
-                    repository.saveProduct(confirmedProduct)
-                    // Remove pending placeholder and queue item only on verified success
-                    repository.deleteProduct(item.id)
-                    repository.removeOfflineItem(item.id)
-                } catch (e: Exception) {
-                    android.util.Log.w("KalaSetuViewModel", "Failed to sync offline item ${item.id}: ${e.message}")
-                }
-            }
-        }
+    fun deleteProduct(id: String, onDeleted: (() -> Unit)? = null) = action {
+        val product = repository.getProduct(id) ?: return@action
+        require(product.status != ListingStatus.UPLOADING && product.status != ListingStatus.PENDING_CONFIRM) { "Wait for sync to finish before deleting." }
+        if (product.remoteSaved) apiService.delete(product)
+        repository.deleteProduct(id); onDeleted?.invoke()
     }
-
+    fun archiveProduct(product: Product) = action {
+        val archived = product.copy(status = ListingStatus.ARCHIVED, updatedAt = System.currentTimeMillis())
+        if (product.remoteSaved) apiService.confirmListing(archived)
+        repository.saveProduct(archived)
+    }
+    fun duplicateProduct(product: Product, onReady: () -> Unit) = action {
+        val duplicate = product.copy(id = UUID.randomUUID().toString(), status = ListingStatus.DRAFT,
+            createdAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis(), remoteSaved = false, lastError = null)
+        setDraftForReview(duplicate); repository.saveProduct(duplicate); onReady()
+    }
+    fun toggleFavorite(id: String) {
+        favorites.value = if (id in favorites.value) favorites.value - id else favorites.value + id
+        prefs.edit().putStringSet("favorites", favorites.value).apply()
+    }
+    fun requestAssistant(instruction: String) = action {
+        currentDraft.value?.let { assistantProposal.value = apiService.assist(it, instruction, currentLanguage.value) }
+    }
+    fun requestVoiceEdit() = action {
+        val path = voiceEditAudioPath ?: return@action
+        val command = apiService.voiceEdit(path, currentLanguage.value)
+        currentDraft.value?.let { assistantProposal.value = apiService.assist(it, command, currentLanguage.value) }
+    }
+    fun applyAssistantProposal() { assistantProposal.value?.let { proposal -> edit { proposal } }; assistantProposal.value = null }
+    fun readListingAloud() = action {
+        val p = currentDraft.value ?: return@action
+        val lang = AppLanguage.entries.find { it.code == preferences.value.ttsLanguage } ?: currentLanguage.value
+        val text = "${p.title}. ${p.description}. ₹${p.finalPrice}"
+        try {
+            val bytes = apiService.readAloud(text, lang)
+            val file = File(getApplication<Application>().cacheDir, "listing_voice.audio")
+            withContext(Dispatchers.IO) { file.writeBytes(bytes) }
+            playerService.playAudio(file.absolutePath, preferences.value.speechSpeed)
+        } catch (_: Exception) { ttsService.speak(text, lang, preferences.value.speechSpeed) }
+    }
     fun clearCaptureForm() {
-        _capturedImageUri.value = null
-        _recordedAudioPath.value = null
-        _isRecording.value = false
-        _recordingDurationSeconds.value = 0
+        voiceEditing = false
+        capturedImageUri.value = null; recordedAudioPath.value = null; isRecording.value = false
+        recordingDurationSeconds.value = 0; captureId = UUID.randomUUID().toString()
+        prefs.edit().remove("capture_photo").remove("capture_audio").remove("capture_id").apply()
     }
-
+    private fun action(block: suspend () -> Unit) {
+        if (busy.value) return
+        busy.value = true
+        viewModelScope.launch {
+            try { block() } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                message.value = "This action could not finish. Your work is kept. Check your connection and try again."
+            } finally { busy.value = false }
+        }
+    }
     override fun onCleared() {
+        runCatching { connectivity.unregisterNetworkCallback(networkCallback) }
+        if (isRecording.value) recordingService.stopRecording()
+        playerService.stopAudio(); ttsService.shutdown(); recordingTimerJob?.cancel()
         super.onCleared()
-        playerService.stopAudio()
-        ttsService.shutdown()
-        recordingTimerJob?.cancel()
     }
 }

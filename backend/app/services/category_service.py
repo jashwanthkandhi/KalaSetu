@@ -47,7 +47,7 @@ class CategoryService:
         self.model = None
         self.transform = None
         self.categories = None
-        self._init_model()
+        self._load_attempted = False
 
     def _init_model(self):
         try:
@@ -59,11 +59,7 @@ class CategoryService:
             self.model = models.mobilenet_v3_small(weights=weights)
             self.model.eval()
             self.categories = weights.meta["categories"]
-            self.transform = T.Compose([
-                T.Resize((224, 224)),
-                T.ToTensor(),
-                T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-            ])
+            self.transform = weights.transforms()
             logger.info("MobileNetV3-Small loaded successfully.")
         except Exception as e:
             logger.warning(f"Could not load MobileNetV3-Small: {e}. Fallback to heuristic.")
@@ -75,8 +71,13 @@ class CategoryService:
         Returns {"name": category_name, "confidence": float}.
         Never raises exceptions to caller.
         """
-        if settings.MOCK_MODE or not self.model:
+        if settings.MOCK_MODE:
             return {"name": "Pottery", "confidence": 0.87}
+        if not self._load_attempted:
+            self._load_attempted = True
+            self._init_model()
+        if self.model is None:
+            return {"name": "Other", "confidence": 0.0}
 
         try:
             import torch

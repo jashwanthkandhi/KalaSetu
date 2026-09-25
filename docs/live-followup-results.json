@@ -1,0 +1,81 @@
+{
+  "textile_listing": {
+    "title": "Handwoven Blue Cotton Scarf",
+    "description": "A handwoven cotton scarf in blue, measuring two meters in length.",
+    "category": "Textiles",
+    "tags": [
+      "cotton",
+      "handwoven",
+      "blue",
+      "scarf",
+      "two meters",
+      "textile"
+    ],
+    "suggested_price": 1800.0,
+    "attributes": {
+      "material": "cotton",
+      "size": "two meters",
+      "technique": "handwoven"
+    }
+  },
+  "llm": "verified_schema",
+  "pricing": {
+    "suggested_price": 578.0,
+    "source": "google_shopping",
+    "low": 389,
+    "high": 2666,
+    "comparables": [
+      {
+        "title": "Eha Earth-Friendly Small Soup Bowls with Spoons | 250 ml | Made with Bamboo Fibers & Rice Husk | Microwave Safe Bowl | Serving Bowl Set of 2 | Celeste",
+        "price": 389,
+        "source": "JioMart"
+      },
+      {
+        "title": "Thenga Jumbo Coconut Shell Bowls with Wooden Spoons, 900 ML, Set of 1",
+        "price": 449,
+        "source": "amazon.in"
+      },
+      {
+        "title": "Eha Earth-Friendly Small Soup Bowls with Spoons | 250 ml | Made with Bamboo Fibers & Rice Husk | Microwave Safe Bowl | Serving Bowl Set of 2 | Coffee",
+        "price": 389,
+        "source": "JioMart"
+      },
+      {
+        "title": "Thenga Handmade Coconut Bowls with Wooden Spoons, 500 ML, Set of 4",
+        "price": 1149,
+        "source": "amazon.in"
+      },
+      {
+        "title": "Earth Friendly Soup Bowl with Spoon and Square Tray Set of 4",
+        "price": 569,
+        "source": "Amazon.in"
+      },
+      {
+        "title": "Thenga Handmade Coconut Bowls with Wooden Spoons, 500 ML, Set of 6",
+        "price": 1749,
+        "source": "amazon.in"
+      },
+      {
+        "title": "Thenga Handmade Coconut Bowl with Wooden Spoons, 500 ML, Pack of 2 | Reusable artisan tableware, polished natural finish, ideal for smoothie bowls,",
+        "price": 587,
+        "source": "Amazon.in"
+      },
+      {
+        "title": "Thenga Hand Carved Coconut Bowl",
+        "price": 426,
+        "source": "Flipkart"
+      },
+      {
+        "title": "3 Count Dessert Bowls Wooden Round Bowl Round Serving Bowl Wood Soup Bowl Round Wood Bowl Child",
+        "price": 2666,
+        "source": "desertcart.in"
+      },
+      {
+        "title": "Rustic Live Edge Olive Wood Snack Bowl| Handmade Olive Wood Bowl| Rustic Snack Bowl For Chips, Fruit, Candy and More|",
+        "price": 1503,
+        "source": "Etsy"
+      }
+    ],
+    "explanation": "Median of current Google Shopping India results. Materials, size and workmanship may differ."
+  }
+}

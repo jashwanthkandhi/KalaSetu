@@ -1,125 +1,70 @@
+"""Opt-in live probes. Reports statuses and synthetic examples, never credentials."""
+import asyncio
+import difflib
+import json
+import logging
 import sys
+import tempfile
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import httpx
 from app.config import settings
+from app.services import stt_service, tts_service, llm_service, category_service, pricing_service, supabase_service
 
-print("================== LIVE API CONNECTIVITY AUDIT ==================")
+logging.disable(logging.CRITICAL)
 
-# 1. SUPABASE
-print("\n[1] SUPABASE DATABASE & STORAGE")
-try:
-    from app.services.supabase_service import supabase_service
-    if supabase_service.client:
+async def main():
+    settings.MOCK_MODE = False
+    report = {'mode': 'live', 'speech_samples': [], 'limitations': [
+        'Synthetic TTS speech is not representative of artisan accents or noisy recordings.',
+        'ImageNet category mapping is not a fine-tuned Indian craft classifier.']}
+    examples = {'en': 'This bowl is carved by hand from neem wood.',
+                'hi': 'यह कटोरा नीम की लकड़ी से हाथ से बनाया गया है।',
+                'te': 'ఈ గిన్నెను వేప చెక్కతో చేతితో తయారు చేశాము.'}
+    for language, expected in examples.items():
+        item = {'language': language, 'expected': expected}
         try:
-            res = supabase_service.client.table("products").select("id").limit(1).execute()
-            print("  -> Database Connection: SUCCESS (connected to Supabase instance)")
-            print(f"  -> Found rows in 'products': {len(res.data)}")
-        except Exception as e:
-            print("  -> Database Notice:", str(e)[:150])
-
+            data = await tts_service.synthesize(expected, language)
+            if not data or len(data) < 44:
+                raise RuntimeError('tts_unavailable')
+            item['tts'] = 'verified_audio_returned'
+            suffix = '.wav' if data.startswith(b'RIFF') else '.mp3'
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as audio:
+                audio.write(data); path = Path(audio.name)
+            try:
+                actual = await stt_service.transcribe(path, language)
+                item.update(actual=actual, similarity=round(difflib.SequenceMatcher(None, expected, actual).ratio(), 3),
+                    stt='verified_response')
+            finally:
+                path.unlink(missing_ok=True)
+        except Exception as exc:
+            item['result'] = type(exc).__name__
+        report['speech_samples'].append(item)
+        print('speech', language, item.get('stt', item.get('result')), flush=True)
+    report['llm'] = []
+    for category, text in [('Wood', examples['en']), ('Textiles', 'I wove this cotton scarf by hand. It is blue and two meters long.')]:
         try:
-            buckets = supabase_service.client.storage.list_buckets()
-            names = [b.name for b in buckets] if buckets else []
-            print(f"  -> Storage Connection: SUCCESS (Buckets: {names})")
-        except Exception as e:
-            print("  -> Storage Notice:", str(e)[:150])
-    else:
-        print("  -> Supabase Client: NOT INITIALIZED")
-except Exception as e:
-    print("  -> Supabase Error:", e)
+            result = await llm_service.generate_listing(text, category, 'en')
+            report['llm'].append({'category_input': category, 'result': 'verified_schema', 'listing': result})
+        except Exception as exc:
+            report['llm'].append({'category_input': category, 'result': type(exc).__name__})
+        print('llm', category, report['llm'][-1]['result'], flush=True)
+    report['pricing'] = await asyncio.to_thread(pricing_service.market_guidance, 'Wood', ['neem', 'bowl'], 850)
+    print('pricing', report['pricing']['source'], flush=True)
+    sample = Path(__file__).parent / 'fixtures/pottery_sample.jpg'
+    if sample.exists():
+        report['classifier'] = await asyncio.to_thread(category_service.predict, sample.read_bytes())
+        report['classifier']['model_loaded'] = category_service.model is not None
+    for name, operation in [('supabase_read', lambda: supabase_service.require_client().table('products').select('id').limit(1).execute()),
+                            ('discovery_schema', lambda: supabase_service.discover(0, 1))]:
+        try:
+            await asyncio.to_thread(operation)
+            report[name] = 'verified_read'
+        except Exception as exc:
+            report[name] = type(exc).__name__
+        print(name, report[name], flush=True)
+    report['image_enhancement'] = 'configured_not_yet_probed' if settings.QWEN_IMAGE_ENDPOINT else 'blocked_no_deployed_image_edit_endpoint'
+    output = Path(__file__).resolve().parents[2] / 'docs/live-provider-results.json'
+    output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding='utf-8')
+    print('Report saved: docs/live-provider-results.json', flush=True)
 
-# 2. SERPAPI
-print("\n[2] SERPAPI (Google Shopping Real-Time Pricing)")
-try:
-    from serpapi import GoogleSearch
-    params = {
-        "engine": "google_shopping",
-        "q": "Terracotta Pot handmade India",
-        "location": "India",
-        "api_key": settings.SERPAPI_KEY,
-        "num": 3,
-    }
-    search = GoogleSearch(params)
-    data = search.get_dict()
-    if "error" in data:
-        print(f"  -> SerpApi: FAILED - {data['error']}")
-    elif "shopping_results" in data or "inline_shopping_results" in data:
-        results = data.get("shopping_results", [])
-        prices = [r.get("extracted_price") for r in results[:3] if "extracted_price" in r]
-        print(f"  -> SerpApi: SUCCESS (live market results received, sample prices: {prices})")
-    else:
-        print(f"  -> SerpApi: Connected (Response keys: {list(data.keys())[:5]})")
-except Exception as e:
-    print("  -> SerpApi Error:", e)
-
-# 3. SARVAM AI (Text to Speech)
-print("\n[3] SARVAM AI (Indian Language Text-to-Speech)")
-try:
-    headers = {
-        "api-subscription-key": settings.SARVAM_API_KEY,
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "inputs": ["నమస్కారం, కళాసేతుకు స్వాగతం."],
-        "target_language_code": "te-IN",
-        "model": settings.SARVAM_MODEL,
-    }
-    resp = httpx.post("https://api.sarvam.ai/text-to-speech", headers=headers, json=payload, timeout=12.0)
-    if resp.status_code == 200:
-        data = resp.json()
-        if "audios" in data and len(data["audios"]) > 0:
-            print(f"  -> Sarvam TTS: SUCCESS (Audio synthesized, bytes length: {len(data['audios'][0])})")
-        else:
-            print("  -> Sarvam TTS: HTTP 200 but no audios returned.")
-    else:
-        print(f"  -> Sarvam TTS: FAILED (HTTP {resp.status_code}) - {resp.text[:150]}")
-except Exception as e:
-    print("  -> Sarvam TTS Error:", e)
-
-# 4. NVIDIA NIM (Nemotron LLM)
-print("\n[4] NVIDIA NIM (Nemotron LLM)")
-try:
-    base = settings.NVIDIA_NIM_BASE_URL.rstrip("/")
-    headers = {
-        "Authorization": f"Bearer {settings.NVIDIA_NIM_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": settings.NEMOTRON_MODEL,
-        "messages": [{"role": "user", "content": "Hello"}],
-        "max_tokens": 10,
-    }
-    resp = httpx.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=10.0)
-    if resp.status_code == 200:
-        print(f"  -> NVIDIA NIM: SUCCESS ({settings.NEMOTRON_MODEL} replied)")
-    else:
-        print(f"  -> NVIDIA NIM: FAILED (HTTP {resp.status_code}) - {resp.text[:150]}")
-except Exception as e:
-    print("  -> NVIDIA NIM Error:", e)
-
-# 5. OPENAI / WHISPER (Speech-to-Text)
-print("\n[5] OPENAI / WHISPER (Speech-to-Text)")
-try:
-    headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
-    resp = httpx.get("https://api.openai.com/v1/models", headers=headers, timeout=10.0)
-    if resp.status_code == 200:
-        print("  -> OpenAI Whisper API: SUCCESS (Account active & models accessible)")
-    else:
-        print(f"  -> OpenAI Whisper API: FAILED (HTTP {resp.status_code}) - {resp.text[:150]}")
-except Exception as e:
-    print("  -> OpenAI Whisper Error:", e)
-
-# 6. MOBILENETV3 (Local ML Model)
-print("\n[6] MOBILENETV3 (Craft Category Classifier)")
-try:
-    from app.services.category_service import category_service
-    if category_service.model is not None:
-        print("  -> MobileNetV3: SUCCESS (ImageNet-pretrained model loaded & running on CPU)")
-    else:
-        print("  -> MobileNetV3: FAILED (Model weights not initialized)")
-except Exception as e:
-    print("  -> MobileNetV3 Error:", e)
-
-print("\n=================================================================")
+if __name__ == '__main__': asyncio.run(main())

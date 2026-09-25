@@ -8,7 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val KalaLightColorScheme = lightColorScheme(
-    primary = KalaPrimary,
+    primary = KalaPrimaryDark,
     onPrimary = Color.White,
     primaryContainer = KalaBanner,
     onPrimaryContainer = KalaText,
@@ -29,12 +29,15 @@ private val KalaLightColorScheme = lightColorScheme(
 )
 
 private val KalaDarkColorScheme = darkColorScheme(
-    primary = KalaPrimary,
-    onPrimary = Color.White,
+    primary = Color(0xFFFFB68D),
+    onPrimary = Color(0xFF3B1705),
     primaryContainer = KalaPrimaryDark,
     onPrimaryContainer = Color.White,
     secondary = KalaSecondary,
     onSecondary = Color.Black,
+    secondaryContainer = Color(0xFF51321F),
+    onSecondaryContainer = Color(0xFFFFDCC5),
+    surfaceTint = Color(0xFFFFB68D),
     background = Color(0xFF1E1511),
     onBackground = Color(0xFFF5F0EB),
     surface = Color(0xFF281E19),
@@ -42,8 +45,8 @@ private val KalaDarkColorScheme = darkColorScheme(
     surfaceVariant = Color(0xFF352923),
     onSurfaceVariant = Color(0xFFC7B9B0),
     outline = Color(0xFF4D3D35),
-    error = KalaError,
-    onError = Color.White
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005)
 )
 
 @Composable
@@ -64,7 +67,14 @@ fun MyApplicationTheme(
 @Composable
 fun KalaSetuTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    highContrast: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    MyApplicationTheme(darkTheme = darkTheme, dynamicColor = false, content = content)
+    val base = if (darkTheme) KalaDarkColorScheme else KalaLightColorScheme
+    val colors = if (highContrast) base.copy(
+        onSurface = if (darkTheme) Color.White else Color(0xFF21120C),
+        onSurfaceVariant = if (darkTheme) Color.White else Color(0xFF21120C),
+        outline = if (darkTheme) Color.White else Color(0xFF21120C)
+    ) else base
+    MaterialTheme(colorScheme = colors, typography = Typography, content = content)
 }

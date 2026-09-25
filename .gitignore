@@ -87,3 +87,4 @@ backend/.pytest_cache/
 
 # Scratch & Temporary
 scratch/
+.test-tools/

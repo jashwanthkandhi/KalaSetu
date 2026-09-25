@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     NEMOTRON_MODEL: str = "nemotron-3-nano-omni-30b-a3b-reasoning"
     QWEN_IMAGE_API_KEY: str = ""
     QWEN_IMAGE_MODEL: str = "Qwen-Image 2.0"
+    QWEN_IMAGE_ENDPOINT: str = ""
+    LOCAL_WHISPER_ENABLED: bool = False
 
     # STT
     WHISPER_MODEL: str = "base"

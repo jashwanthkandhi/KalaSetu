@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
     // 10.0.2.2 connects from Android emulator to host machine localhost:8000
-    private const val DEFAULT_BASE_URL = "http://10.0.2.2:8000/"
+    private val DEFAULT_BASE_URL = com.example.BuildConfig.BACKEND_URL
 
     private val moshi: Moshi by lazy {
         Moshi.Builder()
@@ -20,12 +20,12 @@ object RetrofitClient {
 
     private val okHttpClient: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.NONE
         }
         OkHttpClient.Builder()
             .addInterceptor(logging)
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()

@@ -2,6 +2,7 @@ package com.example
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.core.app.ActivityScenario
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,5 +19,11 @@ class ExampleInstrumentedTest {
     // Context of the app under test.
     val appContext = InstrumentationRegistry.getInstrumentation().targetContext
     assertEquals(BuildConfig.APPLICATION_ID, appContext.packageName)
+  }
+  @Test
+  fun mainActivityLaunchesWithDefaultViewModelFactory() {
+    ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+      scenario.onActivity { activity -> assertFalse(activity.isFinishing) }
+    }
   }
 }

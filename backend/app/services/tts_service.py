@@ -17,7 +17,7 @@ class TTSService:
             return b"RIFF....WAVEfmt...."
 
         # 1. Sarvam Bulbul
-        if settings.TTS_PROVIDER == "sarvam" and settings.SARVAM_API_KEY:
+        if settings.SARVAM_API_KEY and (settings.TTS_PROVIDER == "sarvam" or not settings.GOOGLE_APPLICATION_CREDENTIALS):
             try:
                 lang_code = {"te": "te-IN", "hi": "hi-IN", "en": "en-IN"}.get(language, "en-IN")
                 url = "https://api.sarvam.ai/text-to-speech"
@@ -26,8 +26,9 @@ class TTSService:
                     "Content-Type": "application/json",
                 }
                 payload = {
-                    "inputs": [text[:500]],
-                    "target_language_code": lang_code,
+                    "text": text[:500],
+                    "language_code": lang_code,
+                    "output_audio_codec": "wav",
                     "model": settings.SARVAM_MODEL,
                 }
                 async with httpx.AsyncClient(timeout=15.0) as client:
@@ -38,7 +39,7 @@ class TTSService:
                         if audios:
                             return base64.b64decode(audios[0])
             except Exception as e:
-                logger.warning(f"Sarvam TTS failed: {e}")
+                logger.warning("Sarvam TTS failed: %s", type(e).__name__)
 
         # 2. Google Cloud TTS
         if settings.GOOGLE_APPLICATION_CREDENTIALS:
@@ -59,7 +60,7 @@ class TTSService:
                 )
                 return response.audio_content
             except Exception as e:
-                logger.warning(f"Google Cloud TTS failed: {e}")
+                logger.warning("Google Cloud TTS failed: %s", type(e).__name__)
 
         return None
 

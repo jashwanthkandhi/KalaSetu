@@ -54,7 +54,7 @@ class ExampleRobolectricTest {
   @Test
   fun `viewModel language and online toggle test`() {
     val app = ApplicationProvider.getApplicationContext<Application>()
-    val viewModel = KalaSetuViewModel(app)
+    val viewModel = KalaSetuViewModel(app, backgroundSync = false)
 
     // Language change
     viewModel.setLanguage(AppLanguage.HINDI)
@@ -63,16 +63,13 @@ class ExampleRobolectricTest {
     viewModel.setLanguage(AppLanguage.TELUGU)
     assertEquals(AppLanguage.TELUGU, viewModel.currentLanguage.value)
 
-    // Online toggle
-    val initialOnline = viewModel.isOnline.value
-    viewModel.toggleOnlineStatus()
-    assertEquals(!initialOnline, viewModel.isOnline.value)
+    // Connectivity is observed from Android, never toggled by the user.
   }
 
   @Test
   fun `viewModel draft creation and edit test`() = runTest(testDispatcher) {
     val app = ApplicationProvider.getApplicationContext<Application>()
-    val viewModel = KalaSetuViewModel(app)
+    val viewModel = KalaSetuViewModel(app, backgroundSync = false)
 
     val sampleDraft = Product(
       id = "test-123",
