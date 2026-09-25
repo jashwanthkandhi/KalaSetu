@@ -2,17 +2,18 @@
   <img src="https://placehold.co/800x250/F5F0EB/C4622D?text=KalaSetu+Banner" alt="KalaSetu Banner">
 </p>
 
-<h1 align="center">KalaSetu</h1>
+<h1 align="center">KalaSetu 🇮🇳</h1>
 <p align="center">
-  <strong>Empowering Indian Artisans with AI-Driven Digital Commerce</strong>
+  <strong>Bridging the Gap Between Indian Artisans and the Digital Marketplace</strong>
 </p>
 
 <p align="center">
+  <a href="#the-problem">The Problem</a> •
+  <a href="#our-solution">Our Solution</a> •
   <a href="#features">Features</a> •
   <a href="#architecture">Architecture</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#ai-integration">AI Integration</a> •
-  <a href="#security--privacy">Security</a>
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Getting Started</a>
 </p>
 
 <p align="center">
@@ -25,40 +26,103 @@
 
 ---
 
-**KalaSetu** is a modern artisan catalog mobile application built for Android. It bridges the gap between traditional Indian craftsmanship and modern e-commerce. By leveraging Voice-to-Text and cutting-edge Generative AI, KalaSetu enables artisans with limited digital literacy to create highly professional online product listings in seconds.
+## 🛑 The Problem
 
-Simply snap a photo, speak about the product in your native language (Telugu, Hindi, or English), and let KalaSetu's AI pipeline generate a rich, market-ready listing.
+India is home to millions of talented artisans and craftsmen who create beautiful, authentic handmade products. However, they face a massive digital divide:
+- **Low Digital Literacy:** Creating professional e-commerce listings requires writing catchy titles, detailed descriptions, and SEO tags.
+- **Language Barriers:** Most e-commerce platforms are English-first, while artisans are most comfortable speaking in their native regional languages.
+- **Pricing Uncertainty:** Artisans often struggle to accurately price their goods in a competitive online market.
+- **High Friction:** Existing platforms have complex onboarding processes that alienate rural creators.
 
-## ✨ Features
+## 💡 Our Solution
+
+**KalaSetu** (translating to "Bridge of Art") is a mobile-first cataloging application designed specifically for Indian artisans. It removes the friction of going digital by replacing typing with talking. 
+
+An artisan simply:
+1. **Snaps a photo** of their handicraft.
+2. **Records a voice note** in their native language describing the item.
+3. **Reviews** a completely generated, market-ready listing produced by our AI pipeline.
+
+KalaSetu empowers creators to focus on their craft while AI handles the heavy lifting of e-commerce.
+
+---
+
+## ✨ Core Features
 
 ### 🛍️ Artisan-First Catalog Management
-- **Smart Dashboard:** View real-time local catalog metrics and recent listings.
+- **Smart Dashboard:** View real-time local catalog metrics, total products, and recent listings.
 - **Robust Organization:** Filter by category/status, sort, and manage product details easily.
-- **Offline-First Resilience:** Network drops? No problem. KalaSetu saves drafts via Room Database and features an offline processing queue with automatic background sync.
+- **Offline-First Resilience:** Network drops? No problem. KalaSetu saves drafts locally via a Room Database and features an offline processing queue with automatic background sync.
 - **Fail-Safe Publishing:** AI processes produce a *draft*. KalaSetu **never** publishes to the live marketplace without explicit artisan review and confirmation.
 
 ### 🤖 AI-Powered Workflow (FastAPI Backend)
-- **Generative Copywriting:** NVIDIA NIM / OpenAI models synthesize your voice notes into compelling, professional descriptions and tags.
-- **Image Enhancement:** Original product photos are analyzed and enhanced (Qwen-Image) for a premium e-commerce look.
-- **Market Pricing:** Real-time SerpApi Google Shopping integration suggests fair, competitive market pricing to guide the artisan.
-- **Multilingual Support:** Built-in Sarvam/Whisper transcription translates local Indic languages to English.
+- **Multilingual Transcription:** Built-in Sarvam/Whisper transcription accurately translates regional Indic voice notes (Telugu, Hindi, English) to text.
+- **Generative Copywriting:** NVIDIA NIM / OpenAI models synthesize transcripts into compelling, professional descriptions, titles, and SEO tags.
+- **Image Enhancement (Qwen):** Original product photos are analyzed and enhanced for a premium, well-lit e-commerce look.
+- **Market Pricing Guidance:** Real-time SerpApi Google Shopping integration suggests fair, competitive market pricing to guide the artisan.
 
 ### ♿ Accessibility & Inclusivity
 - **Adaptive UI:** Full support for system Light/Dark mode, dynamic text scaling, and high-contrast modes.
-- **Text-to-Speech (TTS):** App can read generated listings aloud using device TTS or Google TTS, ensuring artisans can review AI outputs regardless of reading ability.
+- **Text-to-Speech (TTS):** The app reads generated listings aloud using device TTS or Google TTS, ensuring artisans can verify AI outputs regardless of reading ability.
 
-## 🏗️ Architecture
+---
+
+## 🏗️ Architecture & Workflow
 
 ```mermaid
-graph LR
-    A[📱 Android App] -->|REST API| B(FastAPI Backend)
-    B --> C{NVIDIA NIM}
-    B --> D{Supabase}
-    C -->|LLM| E[Listing Generation]
-    C -->|Qwen| F[Image Edit]
-    D -->|Postgres| G[(Database)]
-    D -->|Storage| H[Image Buckets]
+graph TD
+    subgraph Mobile Client
+        A[📱 Android App] 
+        B[Local Room DB]
+    end
+
+    subgraph Backend Services
+        C(FastAPI Server)
+        D[AI Pipeline Pipeline]
+    end
+
+    subgraph AI Providers
+        E{NVIDIA NIM / LLM}
+        F{Whisper / Sarvam STT}
+        G{SerpApi Pricing}
+        H{Qwen Image Edit}
+    end
+
+    subgraph Cloud Infrastructure
+        I[(Supabase Postgres)]
+        J[Supabase Storage]
+    end
+
+    A <-->|Sync & Drafts| B
+    A -->|1. Upload Image & Audio| C
+    C -->|2. Transcribe Audio| F
+    C -->|3. Enhance Image| H
+    C -->|4. Generate Listing| E
+    C -->|5. Fetch Pricing| G
+    C -->|6. Return Draft JSON| A
+    A -->|7. Artisan Approves & Publishes| I
+    A -->|8. Upload Images| J
 ```
+
+## 🛠️ Tech Stack Deep Dive
+
+### Frontend (Android)
+- **Language:** Kotlin
+- **UI Framework:** Jetpack Compose (Declarative UI)
+- **Local Storage:** Room Database (SQLite) for offline-first capabilities.
+- **Networking:** Retrofit & OkHttp
+
+### Backend (API)
+- **Framework:** FastAPI (Python 3.10+) for async, high-performance endpoints.
+- **Architecture:** Modular service-based architecture with dependency injection.
+- **Cloud Provider:** Supabase (PostgreSQL, Row Level Security, Cloud Storage).
+
+### AI & Machine Learning
+- **Transcription (STT):** Sarvam AI (Indic languages) with local Whisper fallback.
+- **LLM/Generation:** NVIDIA NIM (Nemotron) for fast, structured JSON prompt generation.
+- **Computer Vision:** MobileNet (ImageNet mapping) for fast categorization, and Qwen endpoints for image enhancement.
+
+---
 
 ## 🚀 Getting Started
 
@@ -70,17 +134,21 @@ Follow these instructions to run the full stack locally.
 - **Database:** Supabase project or local Docker instance.
 
 ### 2. Backend Setup
-Initialize your Python environment and start the server:
 
 ```bash
+# Navigate to the backend directory
 cd backend
+
+# Create and activate a virtual environment
 python -m venv .venv
 .\.venv\Scripts\activate  # Windows
+
+# Install dependencies
 pip install -r requirements.txt
 
 # Configure environment secrets
 cp .env.example .env
-# Edit .env with your Supabase and NVIDIA API keys. NEVER commit this file!
+# ⚠️ Edit .env with your Supabase, NVIDIA NIM, and SerpApi keys. NEVER commit this file!
 
 # Start the API server
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -89,7 +157,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ### 3. Database Migration
 1. Execute `supabase/schema.sql` to initialize tables.
 2. Execute `supabase/product_expansion.sql` for additive updates.
-3. *Note: Ensure your `listing-images` storage bucket is set to Public for image rendering.*
+3. *Note: Ensure your `listing-images` Supabase storage bucket is set to Public.*
 
 ### 4. Android App Setup
 Open the app folder in Android Studio, or build via Gradle:
@@ -97,22 +165,27 @@ Open the app folder in Android Studio, or build via Gradle:
 ```bash
 .\gradlew.bat assembleDebug
 ```
-*Note: Debug builds default to the emulator IP (`http://10.0.2.2:8000/`). To run on a physical device, pass your LAN IP via `-PBACKEND_URL`.*
+*Note: Debug builds default to the emulator IP (`http://10.0.2.2:8000/`). To run on a physical device, pass your LAN IP via `-PBACKEND_URL="http://<your-ip>:8000/"`.*
+
+---
 
 ## 🔒 Security & Privacy
 
-- **Data Minimization:** Local insights are calculated on-device. Buyer views, orders, and sales are strictly isolated.
+- **Data Minimization:** Local insights are calculated entirely on-device. Buyer views, orders, and sales are strictly isolated.
 - **Anonymization:** Owner hashes, private transcripts, and emails are never exposed. Phone numbers are hidden unless explicitly toggled public.
-- **Row Level Security (RLS):** All Supabase queries are protected by strict RLS and authenticated RPCs. 
-- **Ephemeral Processing:** Voice transcripts and original images are temporarily processed and securely dropped after listing generation if configured.
+- **Row Level Security (RLS):** All Supabase queries are protected by strict RLS policies and authenticated RPCs. 
+- **Ephemeral Processing:** Voice transcripts and original images are processed in-memory and securely dropped after generation unless configured otherwise.
 
 ## 🧪 Testing
 
 ```bash
-# Android
+# Run Android Unit Tests & Linting
 .\gradlew.bat testDebugUnitTest lintDebug
 
-# Backend (Pytest)
+# Run Backend Pytest Suite
 cd backend
 pytest tests/ -q
 ```
+
+---
+<p align="center">Made with ❤️ for Indian Artisans.</p>
