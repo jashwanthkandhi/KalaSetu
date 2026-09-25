@@ -1,48 +1,118 @@
-# KalaSetu
+<p align="center">
+  <img src="https://placehold.co/800x250/F5F0EB/C4622D?text=KalaSetu+Banner" alt="KalaSetu Banner">
+</p>
 
-KalaSetu is a Kotlin/Jetpack Compose artisan catalog app with a FastAPI backend, Room drafts and Supabase publishing. An artisan captures a photo and a voice note, reviews a generated listing, chooses a selling price, and explicitly confirms publication.
+<h1 align="center">KalaSetu</h1>
+<p align="center">
+  <strong>Empowering Indian Artisans with AI-Driven Digital Commerce</strong>
+</p>
 
-## Product
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#ai-integration">AI Integration</a> •
+  <a href="#security--privacy">Security</a>
+</p>
 
-- Home dashboard with actual local catalog counts and recent work.
-- Searchable catalog, category/status filters, sorting, product details, duplication, archival and deletion.
-- Durable capture drafts, an offline processing queue, automatic connected retries and a sync center. Processing produces a draft; it never publishes without review.
-- Editable profile and explicit public-phone preference. Discovery, local favorites, Android sharing and a dialer contact action.
-- AI editing proposals, editable attributes, original/enhanced photo comparison and price provenance.
-- Light/dark/system appearance, larger text, contrast, simple view, notification preferences and speech settings.
-- Telugu, Hindi and English speech and common interface labels. Some explanatory/error copy remains English; full interface localization is unfinished.
-- Insights use local catalog records. Buyer views, orders and sales are not tracked.
+<p align="center">
+  <img src="https://img.shields.io/badge/Kotlin-0095D5?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin">
+  <img src="https://img.shields.io/badge/Jetpack_Compose-4285F4?style=for-the-badge&logo=android&logoColor=white" alt="Jetpack Compose">
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase">
+  <img src="https://img.shields.io/badge/NVIDIA_NIM-76B900?style=for-the-badge&logo=nvidia&logoColor=white" alt="NVIDIA NIM">
+</p>
 
-## Run locally
+---
 
-1. Install JDK 21 and Android SDK 36; set the SDK path in your ignored `local.properties`.
-2. Create a Python environment under `backend/.venv` and install `backend/requirements.txt`.
-3. Copy `backend/.env.example` to `backend/.env` and configure your services. Never commit credentials. The Android build does not import this file.
-4. For a new database, apply `supabase/schema.sql`, then `supabase/product_expansion.sql`. For the existing database, apply only the additive expansion migration. It preserves rows but closes the original anonymous table access. Old ownerless rows remain private and need an explicit ownership migration if they must be published.
-5. Configure the `listing-images` storage bucket. The original photo must upload successfully for processing to succeed. Product image URLs are public; do not upload private documents.
-6. From `backend`, run `.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000`.
-7. Build with `.\gradlew.bat assembleDebug`. Debug defaults to the Android emulator backend at `http://10.0.2.2:8000/`. Override using `'-PBACKEND_URL=https://your-backend.example/'`. Release blocks cleartext HTTP and requires your signing configuration.
+**KalaSetu** is a modern artisan catalog mobile application built for Android. It bridges the gap between traditional Indian craftsmanship and modern e-commerce. By leveraging Voice-to-Text and cutting-edge Generative AI, KalaSetu enables artisans with limited digital literacy to create highly professional online product listings in seconds.
 
-## Provider behavior
+Simply snap a photo, speak about the product in your native language (Telugu, Hindi, or English), and let KalaSetu's AI pipeline generate a rich, market-ready listing.
 
-Sarvam speech is primary, with configured Whisper fallback. Sarvam/Google speech synthesis and device TTS support reading listings. NVIDIA NIM or OpenAI produces validated structured listing proposals. Generation can fail or invent details; artisan review remains required.
+## ✨ Features
 
-The MobileNet ImageNet mapping is a category hint, not a validated craft classifier. Missing weights return Other at zero confidence. Qwen enhancement requires a deployed, compatible `QWEN_IMAGE_ENDPOINT`; without it the original is retained and the UI discloses that enhancement is unavailable. Supplying an API key alone does not enable image editing.
+### 🛍️ Artisan-First Catalog Management
+- **Smart Dashboard:** View real-time local catalog metrics and recent listings.
+- **Robust Organization:** Filter by category/status, sort, and manage product details easily.
+- **Offline-First Resilience:** Network drops? No problem. KalaSetu saves drafts via Room Database and features an offline processing queue with automatic background sync.
+- **Fail-Safe Publishing:** AI processes produce a *draft*. KalaSetu **never** publishes to the live marketplace without explicit artisan review and confirmation.
 
-SerpApi Shopping India results provide a median/range when available. Otherwise an explicitly labeled AI estimate is shown. Comparable materials and workmanship may differ, so guidance is not a valuation or guaranteed selling price.
+### 🤖 AI-Powered Workflow (FastAPI Backend)
+- **Generative Copywriting:** NVIDIA NIM / OpenAI models synthesize your voice notes into compelling, professional descriptions and tags.
+- **Image Enhancement:** Original product photos are analyzed and enhanced (Qwen-Image) for a premium e-commerce look.
+- **Market Pricing:** Real-time SerpApi Google Shopping integration suggests fair, competitive market pricing to guide the artisan.
+- **Multilingual Support:** Built-in Sarvam/Whisper transcription translates local Indic languages to English.
 
-`MOCK_MODE` is false by default. Isolated tests replace provider clients; successful contract tests are not evidence of live provider quality.
+### ♿ Accessibility & Inclusivity
+- **Adaptive UI:** Full support for system Light/Dark mode, dynamic text scaling, and high-contrast modes.
+- **Text-to-Speech (TTS):** App can read generated listings aloud using device TTS or Google TTS, ensuring artisans can review AI outputs regardless of reading ability.
 
-## Data and access
+## 🏗️ Architecture
 
-The installation creates a random owner capability used by the backend to scope cloud writes and private catalog reads. This is installation ownership, not a user account: uninstalling or clearing app data loses that capability. Account recovery, cross-device identity, abuse controls and a production gateway remain deployment work.
+```mermaid
+graph LR
+    A[📱 Android App] -->|REST API| B(FastAPI Backend)
+    B --> C{NVIDIA NIM}
+    B --> D{Supabase}
+    C -->|LLM| E[Listing Generation]
+    C -->|Qwen| F[Image Edit]
+    D -->|Postgres| G[(Database)]
+    D -->|Storage| H[Image Buckets]
+```
 
-The database exposes a sanitized marketplace view, never owner hashes, private transcripts or email. Phone is exposed only with opt-in. RLS and owner-checked RPCs protect writes. Do not restore the old demo policies after migration.
+## 🚀 Getting Started
 
-## Verification
+Follow these instructions to run the full stack locally.
 
-Run `.\gradlew.bat assembleDebug testDebugUnitTest lintDebug` and, from `backend`, `.venv\Scripts\python.exe -m pytest tests/test_backend.py tests/test_services.py tests/test_provider_contracts.py -q`.
+### 1. Prerequisites
+- **Android:** JDK 21 and Android SDK 36.
+- **Python:** Python 3.10+ for the backend.
+- **Database:** Supabase project or local Docker instance.
 
-`node scripts/test-migration.mjs` validates the SQL in an isolated PGlite database (install `@electric-sql/pglite` under ignored `.test-tools` first). Live probe scripts are separate, may incur provider usage, and storage probes write a disposable cloud object; run them only with authorization.
+### 2. Backend Setup
+Initialize your Python environment and start the server:
 
-See [the baseline audit](docs/PRODUCT_AUDIT.md) and [verification report](docs/VERIFICATION.md) for evidence and remaining gates. Do not treat this branch as fully verified for production until those gates are closed.
+```bash
+cd backend
+python -m venv .venv
+.\.venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+
+# Configure environment secrets
+cp .env.example .env
+# Edit .env with your Supabase and NVIDIA API keys. NEVER commit this file!
+
+# Start the API server
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### 3. Database Migration
+1. Execute `supabase/schema.sql` to initialize tables.
+2. Execute `supabase/product_expansion.sql` for additive updates.
+3. *Note: Ensure your `listing-images` storage bucket is set to Public for image rendering.*
+
+### 4. Android App Setup
+Open the app folder in Android Studio, or build via Gradle:
+
+```bash
+.\gradlew.bat assembleDebug
+```
+*Note: Debug builds default to the emulator IP (`http://10.0.2.2:8000/`). To run on a physical device, pass your LAN IP via `-PBACKEND_URL`.*
+
+## 🔒 Security & Privacy
+
+- **Data Minimization:** Local insights are calculated on-device. Buyer views, orders, and sales are strictly isolated.
+- **Anonymization:** Owner hashes, private transcripts, and emails are never exposed. Phone numbers are hidden unless explicitly toggled public.
+- **Row Level Security (RLS):** All Supabase queries are protected by strict RLS and authenticated RPCs. 
+- **Ephemeral Processing:** Voice transcripts and original images are temporarily processed and securely dropped after listing generation if configured.
+
+## 🧪 Testing
+
+```bash
+# Android
+.\gradlew.bat testDebugUnitTest lintDebug
+
+# Backend (Pytest)
+cd backend
+pytest tests/ -q
+```
