@@ -36,19 +36,42 @@ class NetworkApiService(private val context: Context) : ApiService {
     }
     override suspend fun processListing(photoUri: String, audioPath: String?, language: AppLanguage,
         onStageUpdate: (ProcessingStage) -> Unit): ProcessResponse = withContext(Dispatchers.IO) {
-        onStageUpdate(ProcessingStage.TRANSCRIBING)
+        onStageUpdate(ProcessingStage.QUEUED)
         val image = bytes(photoUri)
         val png = image.size > 4 && image[0] == 0x89.toByte() && image[1] == 0x50.toByte()
-        val response = body(api.processListing(
+        val fingerprint = java.security.MessageDigest.getInstance("SHA-256").apply {
+            update(image); update(File(requireNotNull(audioPath)).readBytes()); update(language.code.toByteArray())
+        }.digest()
+        val key = java.util.UUID.nameUUIDFromBytes(fingerprint).toString()
+        val accepted = body(api.createJob(owner, key,
             MultipartBody.Part.createFormData("photo", if (png) "product.png" else "product.jpg",
                 image.toRequestBody((if (png) "image/png" else "image/jpeg").toMediaType())),
             audio(audioPath), language.code.toRequestBody("text/plain".toMediaType())))
-        require(response.success) { response.error?.message ?: "Could not generate this listing." }
-        val listing = requireNotNull(response.listing)
-        ProcessResponse(response.request_id, response.transcript.orEmpty(), CraftCategory.fromString(listing.category),
-            response.category?.confidence ?: 0f, requireNotNull(response.original_image_url),
-            response.enhanced_image_url ?: requireNotNull(response.original_image_url), response.image_warning,
-            listing.title, listing.description, listing.tags, listing.suggested_price, response.market_data, listing.attributes)
+        var response: ProcessApiResponse? = null
+        // Every request is short; reconnecting WorkManager derives the same job identity.
+        for (attempt in 0 until 120) {
+            val progress = body(api.job(owner, accepted.job_id))
+            onStageUpdate(when (progress.state) {
+                "QUEUED" -> ProcessingStage.QUEUED
+                "TRANSCRIBING" -> ProcessingStage.TRANSCRIBING
+                "ENHANCING" -> ProcessingStage.ENHANCING_IMAGE
+                "ANALYZING" -> ProcessingStage.CATEGORISING
+                "PRICING" -> ProcessingStage.PRICING
+                "GENERATING" -> ProcessingStage.GENERATING_LISTING
+                "COMPLETED" -> ProcessingStage.COMPLETED
+                else -> ProcessingStage.FAILED
+            })
+            if (progress.state == "FAILED") throw java.io.IOException(progress.error?.message ?: "Processing failed. Please retry.")
+            if (progress.state == "COMPLETED") { response = requireNotNull(progress.result); break }
+            kotlinx.coroutines.delay(2000)
+        }
+        val finished = requireNotNull(response) { "Your job is still processing. Reconnect to check its progress." }
+        require(finished.success) { finished.error?.message ?: "Could not generate this listing." }
+        val listing = requireNotNull(finished.listing)
+        ProcessResponse(finished.request_id, finished.transcript.orEmpty(), CraftCategory.fromString(listing.category),
+            finished.category?.confidence ?: 0f, requireNotNull(finished.original_image_url),
+            finished.enhanced_image_url ?: requireNotNull(finished.original_image_url), finished.image_warning,
+            listing.title, listing.description, listing.tags, listing.suggested_price, finished.market_data, listing.attributes)
     }
     override suspend fun confirmListing(product: Product): String {
         val p = product
@@ -67,9 +90,10 @@ class NetworkApiService(private val context: Context) : ApiService {
     override suspend fun assist(product: Product, instruction: String, language: AppLanguage): Product {
         val p = product
         val result = body(api.assist(AssistApiRequest(ListingApiDto(p.title, p.description,
-            p.category.displayName, p.tags, p.suggestedPrice, p.attributes), instruction, language.code))).listing
+            p.category.displayName, p.tags, p.suggestedPrice, p.attributes, p.finalPrice), instruction, language.code))).listing
         return p.copy(title = result.title, description = result.description, category = CraftCategory.fromString(result.category),
-            tags = result.tags, suggestedPrice = result.suggested_price, attributes = result.attributes)
+            tags = result.tags, suggestedPrice = result.suggested_price, attributes = result.attributes,
+            finalPrice = result.final_price ?: p.finalPrice)
     }
     override suspend fun voiceEdit(path: String, language: AppLanguage) = body(api.voiceEdit(audio(path),
         language.code.toRequestBody("text/plain".toMediaType()))).transcript

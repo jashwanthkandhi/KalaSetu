@@ -38,8 +38,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.WifiOff
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -52,9 +50,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -74,21 +72,34 @@ import coil.compose.AsyncImage
 import com.example.R
 import com.example.core.localization.KalaSetuStrings
 import com.example.core.model.AppLanguage
+import com.example.core.model.CraftCategory
 import com.example.core.model.ListingStatus
 import com.example.core.model.Product
-import com.example.ui.theme.KalaBackground
-import com.example.ui.theme.KalaBanner
 import com.example.ui.theme.KalaBorder
 import com.example.ui.theme.KalaPrimary
 import com.example.ui.theme.KalaPrimaryDark
+import com.example.ui.theme.KalaPrimaryLight
 import com.example.ui.theme.KalaSecondary
-import com.example.ui.theme.KalaSuccess
 import com.example.ui.theme.KalaSurface
 import com.example.ui.theme.KalaText
 import com.example.ui.theme.KalaTextMuted
-import com.example.ui.theme.KalaWarning
 import com.example.ui.theme.Typography
 import kotlin.math.sin
+
+/**
+ * Intelligent craft illustration fallback when network photo is unavailable or mock
+ */
+fun fallbackDrawableForProduct(product: Product): Int {
+    if (product.sampleDrawableRes != null) return product.sampleDrawableRes
+    val titleLower = product.title.lowercase()
+    return when {
+        product.category == CraftCategory.WOOD || titleLower.contains("wood") || titleLower.contains("carved") || titleLower.contains("bowl") -> R.drawable.ic_craft_wood
+        product.category == CraftCategory.BAMBOO || titleLower.contains("bamboo") || titleLower.contains("basket") -> R.drawable.ic_bamboo_basket_detailed
+        product.category == CraftCategory.POTTERY || titleLower.contains("pot") || titleLower.contains("terracotta") || titleLower.contains("clay") -> R.drawable.ic_terracotta_pot_detailed
+        product.category == CraftCategory.TEXTILES || titleLower.contains("saree") || titleLower.contains("silk") || titleLower.contains("cloth") || titleLower.contains("print") -> R.drawable.ic_block_print_detailed
+        else -> R.drawable.ic_craft_hero
+    }
+}
 
 /**
  * Custom Modifier to draw dashed rounded border
@@ -157,17 +168,26 @@ fun PrimaryButton(
             }
             .testTag(testTag),
         shape = RoundedCornerShape(100.dp),
-        color = if (enabled) KalaPrimary else KalaPrimary.copy(alpha = 0.45f),
+        color = Color.Transparent,
         shadowElevation = if (enabled && !isPressed) 4.dp else 0.dp,
         interactionSource = interactionSource
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    if (enabled) Brush.horizontalGradient(listOf(KalaPrimary, KalaPrimaryLight))
+                    else Brush.horizontalGradient(listOf(KalaPrimary.copy(alpha = 0.45f), KalaPrimary.copy(alpha = 0.35f)))
+                )
+        ) {
             Text(
                 text = text,
                 style = Typography.labelLarge.copy(
                     color = Color.White,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.3.sp
                 ),
                 textAlign = TextAlign.Center
             )
@@ -200,7 +220,7 @@ fun SecondaryButton(
                 style = Typography.labelLarge.copy(
                     color = if (enabled) KalaPrimary else KalaPrimary.copy(alpha = 0.4f),
                     fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold
                 ),
                 textAlign = TextAlign.Center
             )
@@ -219,34 +239,34 @@ fun AppHeader(
         modifier = modifier
             .fillMaxWidth()
             .height(56.dp)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (onBackClick != null) {
             IconButton(
                 onClick = onBackClick,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(KalaSurface)
+                    .border(BorderStroke(1.dp, KalaBorder), CircleShape)
                     .testTag("back_button")
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = KalaText,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
-        } else {
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
         }
 
         Text(
             text = title,
-            style = Typography.headlineSmall.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp),
+            style = Typography.headlineSmall.copy(fontWeight = FontWeight.Bold, fontSize = 22.sp),
             color = KalaText,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 4.dp),
+            modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -283,7 +303,7 @@ fun LanguageSelector(
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .height(if (isCompact) 32.dp else 40.dp)
+                    .height(if (isCompact) 34.dp else 42.dp)
                     .clip(RoundedCornerShape(100.dp))
                     .background(bgColor)
                     .border(
@@ -291,14 +311,14 @@ fun LanguageSelector(
                         RoundedCornerShape(100.dp)
                     )
                     .clickable { onLanguageSelected(lang) }
-                    .padding(horizontal = if (isCompact) 10.dp else 16.dp)
+                    .padding(horizontal = if (isCompact) 12.dp else 16.dp)
                     .testTag("lang_${lang.code}")
             ) {
                 Text(
                     text = lang.nativeName,
-                    style = if (isCompact) Typography.labelMedium else Typography.labelLarge,
+                    style = if (isCompact) Typography.labelMedium.copy(fontSize = 12.sp) else Typography.labelLarge.copy(fontSize = 14.sp),
                     color = textColor,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                 )
             }
         }
@@ -311,12 +331,13 @@ fun StatusChip(
     language: AppLanguage = AppLanguage.ENGLISH,
     modifier: Modifier = Modifier
 ) {
-    val (borderColor, textColor) = when (status) {
-        ListingStatus.SAVED -> Pair(Color(0xFF388E3C), Color(0xFF388E3C))
-        ListingStatus.DRAFT -> Pair(Color(0xFFD4A017), Color(0xFFD4A017))
-        ListingStatus.PENDING_UPLOAD -> Pair(KalaWarning, KalaWarning)
-        ListingStatus.UPLOADING -> Pair(KalaPrimary, KalaPrimary)
-        else -> Pair(KalaTextMuted, KalaTextMuted)
+    val (bgColor, borderColor, textColor) = when (status) {
+        ListingStatus.SAVED -> Triple(Color(0xFFE8F5E9), Color(0xFFA5D6A7), Color(0xFF1B5E20))
+        ListingStatus.DRAFT -> Triple(Color(0xFFFEF3C7), Color(0xFFFCD34D), Color(0xFFB45309))
+        ListingStatus.PENDING_UPLOAD -> Triple(Color(0xFFEEF2FF), Color(0xFFC7D2FE), Color(0xFF4338CA))
+        ListingStatus.UPLOADING -> Triple(Color(0xFFFFF7ED), Color(0xFFFDBA74), Color(0xFFC2410C))
+        ListingStatus.FAILED -> Triple(Color(0xFFFEE2E2), Color(0xFFFECACA), Color(0xFFB91C1C))
+        else -> Triple(Color(0xFFF5F0EB), Color(0xFFE0D6CE), KalaTextMuted)
     }
 
     val label = when (status) {
@@ -338,13 +359,13 @@ fun StatusChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(100.dp))
-            .background(Color.White)
+            .background(bgColor)
             .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(100.dp))
-            .padding(horizontal = 10.dp, vertical = 2.dp)
+            .padding(horizontal = 10.dp, vertical = 3.dp)
     ) {
         Text(
             text = label,
-            style = Typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+            style = Typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
             color = textColor
         )
     }
@@ -363,40 +384,38 @@ fun ProductCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag("product_card_${product.id}"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         color = Color.White,
-        shadowElevation = 2.dp
+        border = BorderStroke(1.dp, KalaBorder.copy(alpha = 0.8f)),
+        shadowElevation = 3.dp
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Image Zone
+            // Image Zone with craft fallback
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(1.1f)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .background(Color(0xFFF8F4F0)),
+                    .aspectRatio(1.15f)
+                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                    .background(Color(0xFFF7F2ED)),
                 contentAlignment = Alignment.Center
             ) {
-                if (product.localImageUri != null) {
+                val imageModel = product.localImageUri ?: product.imageUrl ?: product.originalImageUrl
+                if (imageModel != null && !imageModel.contains(".test/")) {
                     AsyncImage(
-                        model = product.localImageUri,
-                        contentDescription = product.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else if (product.sampleDrawableRes != null) {
-                    Image(
-                        painter = painterResource(id = product.sampleDrawableRes),
+                        model = imageModel,
                         contentDescription = product.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
+                    val fallbackRes = fallbackDrawableForProduct(product)
                     Image(
-                        painter = painterResource(id = R.drawable.ic_terracotta_pot_detailed),
+                        painter = painterResource(id = fallbackRes),
                         contentDescription = product.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
                     )
                 }
 
@@ -405,10 +424,11 @@ fun ProductCard(
                         onClick = onDeleteClick,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(4.dp)
-                            .size(32.dp)
+                            .padding(8.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.85f))
+                            .background(Color.White.copy(alpha = 0.9f))
+                            .border(BorderStroke(1.dp, Color(0xFFF0E5E0)), CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
@@ -421,19 +441,19 @@ fun ProductCard(
             }
 
             // Info Zone
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 Text(
-                    text = product.title,
+                    text = product.title.ifBlank { "Untitled Craft" },
                     style = Typography.bodyLarge.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp),
                     color = KalaText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = KalaSetuStrings.localizedCategory(product.category.displayName, language),
-                    style = Typography.bodyMedium.copy(fontSize = 13.sp),
-                    color = Color(0xFF8A7A70),
+                    style = Typography.bodyMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                    color = KalaTextMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -444,11 +464,11 @@ fun ProductCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "₹ ${product.finalPrice.toInt()}",
+                        text = if (product.finalPrice > 0) "₹ ${product.finalPrice.toInt()}" else "Price not set",
                         style = Typography.headlineSmall.copy(
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = KalaText
+                            fontWeight = FontWeight.ExtraBold,
+                            color = KalaPrimary
                         )
                     )
                     StatusChip(status = product.status, language = language)
@@ -475,15 +495,15 @@ fun ProgressStepRow(
                 .padding(vertical = 12.dp, horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left Status Icon Circle (28dp)
+            // Left Status Icon Circle (30dp)
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(30.dp)
                     .clip(CircleShape)
                     .background(
                         when {
-                            isCompleted -> Color(0xFF388E3C)
+                            isCompleted -> Color(0xFF16A34A)
                             isActive -> KalaPrimary
                             else -> Color.Transparent
                         }
@@ -492,7 +512,7 @@ fun ProgressStepRow(
                         BorderStroke(
                             1.5.dp,
                             when {
-                                isCompleted -> Color(0xFF388E3C)
+                                isCompleted -> Color(0xFF16A34A)
                                 isActive -> KalaPrimary
                                 else -> Color(0xFFD0C5BD)
                             }
@@ -505,14 +525,19 @@ fun ProgressStepRow(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Completed",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 } else if (isActive) {
                     Icon(
                         imageVector = Icons.Default.AccessTime,
                         contentDescription = "In progress",
                         tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    Text(
+                        text = "$stepNumber",
+                        style = Typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = KalaTextMuted)
                     )
                 }
             }
@@ -541,8 +566,12 @@ fun ProgressStepRow(
                     },
                     style = Typography.labelSmall.copy(
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF8A7A70),
+                        fontWeight = FontWeight.ExtraBold,
+                        color = when {
+                            isCompleted -> Color(0xFF15803D)
+                            isActive -> KalaPrimary
+                            else -> KalaTextMuted
+                        },
                         letterSpacing = 0.5.sp
                     )
                 )
@@ -552,7 +581,7 @@ fun ProgressStepRow(
                     style = Typography.bodyLarge.copy(
                         fontSize = 15.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isCompleted || isActive) KalaText else Color(0xFF8A7A70)
+                        color = if (isCompleted || isActive) KalaText else KalaTextMuted
                     )
                 )
             }
@@ -618,6 +647,7 @@ fun BottomActionBar(
     Surface(
         color = Color.White,
         shadowElevation = 8.dp,
+        border = BorderStroke(1.dp, KalaBorder.copy(alpha = 0.5f)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
@@ -639,8 +669,8 @@ fun BottomActionBar(
                 Text(
                     text = footnote,
                     style = Typography.bodySmall.copy(
-                        fontSize = 13.sp,
-                        color = Color(0xFF6D5E57)
+                        fontSize = 12.sp,
+                        color = KalaTextMuted
                     ),
                     textAlign = TextAlign.Center
                 )
@@ -658,9 +688,9 @@ fun VoiceRecorderButton(
     val infiniteTransition = rememberInfiniteTransition(label = "mic_rings")
     val ringPulse by infiniteTransition.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.08f,
+        targetValue = 1.09f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "ring_pulse"
@@ -672,26 +702,26 @@ fun VoiceRecorderButton(
             .size(210.dp)
             .testTag("voice_record_button")
     ) {
-        // Concentric glowing rings matching screenshot 1
+        // Concentric glowing rings
         Box(
             modifier = Modifier
                 .size(200.dp)
                 .scale(if (isRecording) ringPulse else 1f)
                 .clip(CircleShape)
-                .background(KalaPrimary.copy(alpha = 0.08f))
+                .background(KalaPrimary.copy(alpha = if (isRecording) 0.12f else 0.05f))
         )
         Box(
             modifier = Modifier
                 .size(160.dp)
                 .scale(if (isRecording) ringPulse * 0.98f else 1f)
                 .clip(CircleShape)
-                .background(KalaPrimary.copy(alpha = 0.16f))
+                .background(KalaPrimary.copy(alpha = if (isRecording) 0.22f else 0.12f))
         )
         Box(
             modifier = Modifier
                 .size(130.dp)
                 .clip(CircleShape)
-                .background(KalaPrimary.copy(alpha = 0.28f))
+                .background(KalaPrimary.copy(alpha = if (isRecording) 0.35f else 0.20f))
         )
 
         // Core Terracotta Button (104dp)
@@ -699,15 +729,23 @@ fun VoiceRecorderButton(
             onClick = onClick,
             modifier = Modifier.size(104.dp),
             shape = CircleShape,
-            color = KalaPrimary,
-            shadowElevation = 6.dp
+            color = Color.Transparent,
+            shadowElevation = 8.dp
         ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (isRecording) Brush.radialGradient(listOf(Color(0xFFE53935), Color(0xFFC62828)))
+                        else Brush.radialGradient(listOf(KalaPrimaryLight, KalaPrimary))
+                    )
+            ) {
                 Icon(
                     imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
                     contentDescription = if (isRecording) "Stop Recording" else "Start Recording",
                     tint = Color.White,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(46.dp)
                 )
             }
         }
@@ -719,7 +757,6 @@ fun WaveformVisualizer(
     isRecording: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Symmetrical heights matching screenshot 1
     val baseHeights = listOf(
         6f, 10f, 14f, 20f, 32f, 42f, 38f, 22f, 26f, 34f, 40f, 36f, 26f, 44f, 36f, 26f, 36f, 40f, 34f, 26f, 22f, 38f, 42f, 32f, 20f, 14f, 10f, 6f
     )
@@ -757,7 +794,7 @@ fun WaveformVisualizer(
             val bottom = top + h
 
             drawLine(
-                color = KalaPrimary,
+                color = if (isRecording) KalaPrimary else KalaPrimary.copy(alpha = 0.5f),
                 start = androidx.compose.ui.geometry.Offset(x, top),
                 end = androidx.compose.ui.geometry.Offset(x, bottom),
                 strokeWidth = barWidth,

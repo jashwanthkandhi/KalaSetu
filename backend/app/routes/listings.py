@@ -11,11 +11,8 @@ from ..utils.file_utils import save_temp, cleanup_files
 from ..utils.validation import validate_media_files, MAX_PHOTO_SIZE, MAX_AUDIO_SIZE
 
 logger = logging.getLogger('kalasetu.listings')
+from ..services.ownership import owner_key
 router = APIRouter(prefix='/api/v1/listings', tags=['Listings'])
-
-
-def owner_key(x_owner_key: str = Header(min_length=32, max_length=128)):
-    return x_owner_key
 
 
 def failure(code, message, status=503, request_id=None):

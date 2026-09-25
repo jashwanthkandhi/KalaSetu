@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     # Supabase
     SUPABASE_URL: str = Field(default="", alias="SUPABASE_URL")
     SUPABASE_KEY: str = Field(default="", alias="SUPABASE_KEY")
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    JOB_WORKERS: int = Field(default=5, ge=1, le=10)
+    JOB_WORKER_ENABLED: bool = True
+    VISION_MODEL: str = ""
+    VISION_BASE_URL: str = ""
+    VISION_API_KEY: str = ""
     NEXT_PUBLIC_SUPABASE_URL: Optional[str] = None
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: Optional[str] = None
 
@@ -73,6 +79,10 @@ class Settings(BaseSettings):
         self.QWEN_IMAGE_MODEL = self.QWEN_IMAGE_MODEL.strip().strip('"').strip("'")
         self.WHISPER_MODEL = self.WHISPER_MODEL.strip().strip('"').strip("'")
         self.SARVAM_MODEL = self.SARVAM_MODEL.strip().strip('"').strip("'")
+        if not self.VISION_MODEL and 'nemotron-3-nano-omni' in self.NEMOTRON_MODEL:
+            self.VISION_MODEL = self.NEMOTRON_MODEL
+            self.VISION_BASE_URL = self.VISION_BASE_URL or self.NVIDIA_NIM_BASE_URL
+            self.VISION_API_KEY = self.VISION_API_KEY or self.NVIDIA_NIM_API_KEY
 
         # Check if WHISPER_MODEL is an OpenAI key
         if self.WHISPER_MODEL.startswith("sk-") and not self.OPENAI_API_KEY:

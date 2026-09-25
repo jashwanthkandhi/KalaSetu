@@ -3,7 +3,6 @@ import mimetypes
 from openai import AsyncOpenAI
 import httpx
 from ..config import settings
-from ..mock_data import MOCK_TRANSCRIPTS
 
 
 class STTService:
@@ -12,8 +11,6 @@ class STTService:
         self.local_model = None
 
     async def transcribe(self, audio_path, language):
-        if settings.MOCK_MODE:
-            return MOCK_TRANSCRIPTS[language]
         if settings.SARVAM_API_KEY:
             for attempt in range(2):
                 try:

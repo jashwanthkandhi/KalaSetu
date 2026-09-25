@@ -131,6 +131,8 @@ class AudioPlayerService {
     }
 
     fun isCurrentlyPlaying(): Boolean = isPlaying
+    fun pause() { mediaPlayer?.pause(); isPlaying = false }
+    fun resume() { mediaPlayer?.start(); isPlaying = mediaPlayer != null }
 }
 
 class TextToSpeechService(context: Context) {

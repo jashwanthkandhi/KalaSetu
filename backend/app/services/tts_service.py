@@ -13,9 +13,6 @@ class TTSService:
         Synthesizes text to speech audio bytes (MP3/WAV).
         Supports Sarvam Bulbul and Google Cloud TTS.
         """
-        if settings.MOCK_MODE:
-            return b"RIFF....WAVEfmt...."
-
         # 1. Sarvam Bulbul
         if settings.SARVAM_API_KEY and (settings.TTS_PROVIDER == "sarvam" or not settings.GOOGLE_APPLICATION_CREDENTIALS):
             try:

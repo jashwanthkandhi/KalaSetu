@@ -1,10 +1,16 @@
 import logging
+import asyncio
 import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from .config import settings
 from .routes import health_router, listings_router, tts_router
+from .routes.jobs import router as jobs_router
+from .routes.distribution import router as distribution_router
+from .services.job_runner import worker
 
 # Configure structured logging (TH-18)
 logging.basicConfig(
@@ -21,13 +27,19 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing KalaSetu Backend Service (SIH26090)...")
     if settings.MOCK_MODE:
-        logger.warning(">>> MOCK MODE ACTIVE - Deterministic fixtures will be served <<<")
+        raise RuntimeError('MOCK_MODE cannot be used by the server. Use isolated test doubles instead.')
     else:
         logger.info(f"NIM Base URL: {settings.NVIDIA_NIM_BASE_URL}")
         logger.info(f"Nemotron Model: {settings.NEMOTRON_MODEL}")
         logger.info(f"Qwen Image Model: {settings.QWEN_IMAGE_MODEL}")
         logger.info(f"TTS Provider: {settings.TTS_PROVIDER}")
-    yield
+    workers = [asyncio.create_task(worker()) for _ in range(settings.JOB_WORKERS)] if settings.JOB_WORKER_ENABLED and settings.SUPABASE_SERVICE_ROLE_KEY else []
+    try:
+        yield
+    finally:
+        for task in workers:
+            task.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
     # Shutdown
     logger.info("Shutting down KalaSetu Backend Service.")
 
@@ -38,6 +50,14 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request, exc):
+    # Do not echo recordings, personal text or non-JSON numbers in error bodies.
+    return JSONResponse(status_code=422, content={'detail': [
+        {'loc': list(error['loc']), 'msg': error['msg'], 'type': error['type']}
+        for error in exc.errors()]})
 
 # CORS middleware for mobile client communication
 app.add_middleware(
@@ -50,6 +70,8 @@ app.add_middleware(
 
 # Mount routes
 app.include_router(health_router)
+app.include_router(jobs_router)
+app.include_router(distribution_router)
 app.include_router(listings_router)
 app.include_router(tts_router)
 

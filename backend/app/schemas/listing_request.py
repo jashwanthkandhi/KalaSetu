@@ -2,7 +2,7 @@ from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-Category = Literal['Pottery', 'Textiles', 'Bamboo', 'Wood', 'Home Decor', 'Jewellery', 'Paintings', 'Leather', 'Other']
+Category = Literal['Pottery', 'Textiles', 'Bamboo', 'Wood', 'Home Decor', 'Jewellery', 'Paintings', 'Leather', 'Metalwork', 'Stone', 'Other']
 Language = Literal['te', 'hi', 'en']
 
 
@@ -54,8 +54,18 @@ class ConfirmListingRequest(LLMListingSchema):
         return value
 
 
+class EditableListing(LLMListingSchema):
+    final_price: float = Field(default=0, ge=0, le=50000, allow_inf_nan=False)
+
+
+class FieldEdit(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    field: Literal['title', 'description', 'category', 'tags', 'final_price', 'attributes', 'none']
+    value: str | float | list[str] | dict[str, str] | None
+
+
 class AssistRequest(BaseModel):
-    listing: LLMListingSchema
+    listing: EditableListing
     instruction: str = Field(min_length=1, max_length=500)
     language: Language = 'en'
 

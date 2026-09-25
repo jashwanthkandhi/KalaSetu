@@ -25,10 +25,10 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ProductUiTest {
     @get:Rule val compose = createComposeRule()
-    private fun start(dark: Boolean = false): KalaSetuViewModel {
+    private fun start(dark: Boolean = false, language: String = "en"): KalaSetuViewModel {
         val app = ApplicationProvider.getApplicationContext<Application>()
         app.getSharedPreferences("kalasetu_prefs", Context.MODE_PRIVATE).edit().clear()
-            .putBoolean("tutorial_seen", true).putString("selected_language", "en").commit()
+            .putBoolean("tutorial_seen", true).putString("selected_language", language).commit()
         val vm = KalaSetuViewModel(app, TestApi(), backgroundSync = false)
         vm.updateProfile(ArtisanProfile(display_name = "Ananya", shop_name = "Earth & Thread", craft = "Woodcraft"))
         if (dark) vm.updatePreferences(AppPreferences(theme = "Dark", largerText = true, highContrast = true))
@@ -66,6 +66,34 @@ class ProductUiTest {
         compose.onNodeWithText("Generate listing").assertIsNotEnabled()
         compose.onRoot().captureRoboImage("build/reports/product-ui/capture.png")
     }
+    @Test fun `catalog view switch and filter reset retain real products`() {
+        start()
+        compose.onAllNodesWithText("Catalog").onLast().performClick()
+        compose.onNodeWithTag("catalog_search").performTextInput("no match")
+        compose.onNodeWithText("Reset filters").performClick()
+        compose.onNodeWithText("Carved wooden bowl").assertExists()
+        compose.onNodeWithContentDescription("List view").performClick()
+        compose.onNodeWithContentDescription("Grid view").assertExists()
+        compose.onRoot().captureRoboImage("build/reports/product-ui/catalog-list.png")
+    }
+    @Test fun `capture guidance opens and dismisses without losing screen`() {
+        start()
+        compose.onNodeWithText("Create", useUnmergedTree = true).performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Tips for a beautiful listing"))
+        compose.onNodeWithText("Tips for a beautiful listing").performClick()
+        compose.onNodeWithText("Got it").performClick()
+        compose.onNodeWithTag("capture_screen").assertExists()
+    }
+    @Test fun `telugu interactive home renders`() {
+        start(language = "te")
+        compose.onNodeWithText("మీ సృష్టి. ప్రపంచంతో పంచుకోండి.").assertExists()
+        compose.onRoot().captureRoboImage("build/reports/product-ui/home-telugu.png")
+    }
+    @Test fun `hindi interactive home renders with large text`() {
+        start(dark = true, language = "hi")
+        compose.onNodeWithText("आपकी रचना। दुनिया के साथ साझा करें।").assertExists()
+        compose.onRoot().captureRoboImage("build/reports/product-ui/home-hindi-large.png")
+    }
     @Test fun `profile preferences and favorites survive viewmodel recreation`() {
         val vm = start()
         val profile = ArtisanProfile(display_name = "Artisan", contact = "12345", contact_public = false)
@@ -93,7 +121,10 @@ class ProductUiTest {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()
             vm.currentDraft.value?.id != original.id
         }
-        compose.waitUntil(10_000) { !vm.busy.value }
+        compose.waitUntil(10_000) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            !vm.busy.value
+        }
         val copy = vm.currentDraft.value!!
         assertEquals(ListingStatus.DRAFT, copy.status); assertFalse(copy.remoteSaved)
         val repo = KalaSetuRepository(KalaSetuDatabase.getDatabase(ApplicationProvider.getApplicationContext()))

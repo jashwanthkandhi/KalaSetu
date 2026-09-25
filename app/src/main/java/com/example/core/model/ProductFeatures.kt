@@ -4,7 +4,8 @@ data class MarketComparable(val title: String = "", val price: Double = 0.0, val
 data class MarketData(
     val source: String = "unavailable", val low: Double? = null, val high: Double? = null,
     val explanation: String = "Live market data is unavailable.",
-    val comparables: List<MarketComparable> = emptyList()
+    val comparables: List<MarketComparable> = emptyList(),
+    val labor_cost: Double? = null, val material_cost: Double? = null, val margin: Double? = null
 )
 data class ArtisanProfile(
     val display_name: String = "", val shop_name: String = "", val craft: String = "",

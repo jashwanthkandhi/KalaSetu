@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.example.core.model.*
@@ -22,6 +23,10 @@ fun translated(text: String, language: AppLanguage): String {
     return when(language) { AppLanguage.TELUGU -> values.first; AppLanguage.HINDI -> values.second; else -> text }
 }
 private val translations = mapOf(
+    "Made by you. Shared with the world." to ("మీ సృష్టి. ప్రపంచంతో పంచుకోండి." to "आपकी रचना। दुनिया के साथ साझा करें।"),
+    "Capture your product" to ("మీ ఉత్పత్తిని క్యాప్చర్ చేయండి" to "अपने उत्पाद की फ़ोटो लें"),
+    "Tell your product story" to ("మీ ఉత్పత్తి కథను చెప్పండి" to "अपने उत्पाद की कहानी बताएँ"),
+
     "Loading photo" to ("ఫోటో లోడ్ అవుతోంది" to "फ़ोटो लोड हो रही है"),
     "Photo unavailable" to ("ఫోటో అందుబాటులో లేదు" to "फ़ोटो उपलब्ध नहीं है"),
     "Product photo" to ("ఉత్పత్తి ఫోటో" to "उत्पाद की फ़ोटो"),
@@ -172,43 +177,127 @@ private val translations = mapOf(
 fun money(value: Double): String = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 2 }.format(value)
 fun dateLabel(value: Long): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(value))
 @Composable fun SectionTitle(title: String, subtitle: String? = null) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label(title), style = MaterialTheme.typography.headlineMedium)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label(title), style = MaterialTheme.typography.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
         subtitle?.let { Text(label(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 @Composable fun ProductImage(product: Product, original: Boolean = false, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = modifier) {
-        SubcomposeAsyncImage(model = if (original) product.localImageUri ?: product.originalImageUrl else product.imageUrl ?: product.localImageUri ?: product.originalImageUrl,
-            contentDescription = product.title.ifBlank { label("Product photo") }, contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxWidth().aspectRatio(1.2f),
-            loading = { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(label("Loading photo"), style = MaterialTheme.typography.labelSmall) } },
-            error = { Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) { Text(label("Photo unavailable"), style = MaterialTheme.typography.labelSmall) } })
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = modifier
+    ) {
+        val imageModel = if (original) product.localImageUri ?: product.originalImageUrl else product.imageUrl ?: product.localImageUri ?: product.originalImageUrl
+        if (imageModel != null && !imageModel.contains(".test/")) {
+            SubcomposeAsyncImage(
+                model = imageModel,
+                contentDescription = product.title.ifBlank { label("Product photo") },
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.2f),
+                loading = {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+                    }
+                },
+                error = {
+                    val fallbackRes = com.example.ui.components.fallbackDrawableForProduct(product)
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = fallbackRes),
+                        contentDescription = product.title.ifBlank { label("Product photo") },
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(14.dp)
+                    )
+                }
+            )
+        } else {
+            val fallbackRes = com.example.ui.components.fallbackDrawableForProduct(product)
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = fallbackRes),
+                contentDescription = product.title.ifBlank { label("Product photo") },
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1.2f).padding(14.dp)
+            )
+        }
     }
 }
 @Composable fun StatusLabel(product: Product) {
-    SuggestionChip(onClick = {}, label = { Text(label(product.status.label)) })
+    com.example.ui.components.StatusChip(status = product.status)
 }
 @Composable fun ProductRow(product: Product, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            ProductImage(product, modifier = Modifier.width(92.dp))
+    ElevatedCard(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            ProductImage(product, modifier = Modifier.width(96.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (product.sampleDrawableRes != null) Text(label("Legacy example · excluded from insights"), style = MaterialTheme.typography.labelSmall)
-                Text(product.title.ifBlank { label("Drafts") }, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-                Text(label(product.category.displayName), style = MaterialTheme.typography.bodySmall)
-                Text(if (product.finalPrice > 0) money(product.finalPrice) else label("Price not set"), style = MaterialTheme.typography.titleMedium)
-                Text("${label(product.status.label)} · ${dateLabel(product.createdAt)}", style = MaterialTheme.typography.labelSmall)
+                if (product.sampleDrawableRes != null) {
+                    Text(label("Legacy example · excluded from insights"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    product.title.ifBlank { label("Drafts") },
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    label(product.category.displayName),
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (product.finalPrice > 0) money(product.finalPrice) else label("Price not set"),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    com.example.ui.components.StatusChip(status = product.status)
+                }
+                Text("${dateLabel(product.createdAt)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
 }
 @Composable fun ActionButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Button(onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = RoundedCornerShape(16.dp)) { Text(label(text)) }
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(100.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
+    ) {
+        Text(
+            label(text),
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                fontSize = 15.sp
+            )
+        )
+    }
 }
 @Composable fun EmptyProducts(onCreate: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        SectionTitle("No products yet", "Start with a photo and a short voice note about your craft.")
-        ActionButton("Create listing", onCreate)
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            SectionTitle("No products yet", "Start with a photo and a short voice note about your craft.")
+            Spacer(Modifier.height(8.dp))
+            ActionButton("Create listing", onCreate)
+        }
     }
 }

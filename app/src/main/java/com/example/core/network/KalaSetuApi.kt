@@ -13,7 +13,7 @@ data class CategoryApiDto(val name: String, val confidence: Float)
 @JsonClass(generateAdapter = true)
 data class ListingApiDto(val title: String, val description: String, val category: String,
     val tags: List<String> = emptyList(), val suggested_price: Double,
-    val attributes: Map<String, String> = emptyMap())
+    val attributes: Map<String, String> = emptyMap(), val final_price: Double? = null)
 @JsonClass(generateAdapter = true)
 data class ErrorApiDto(val code: String, val message: String)
 @JsonClass(generateAdapter = true)
@@ -60,6 +60,14 @@ data class VoiceEditResponse(val transcript: String)
 data class TtsApiRequest(val text: String, val language: String)
 
 interface KalaSetuApi {
+    @POST("api/v1/distribution/social-content")
+    suspend fun socialContent(@Body request: SocialRequest): Response<SocialContent>
+    @Multipart @POST("api/v1/listings/jobs")
+    suspend fun createJob(@Header("X-Owner-Key") owner: String, @Header("Idempotency-Key") key: String,
+        @Part photo: MultipartBody.Part, @Part audio: MultipartBody.Part,
+        @Part("language") language: RequestBody): Response<JobAccepted>
+    @GET("api/v1/listings/jobs/{id}")
+    suspend fun job(@Header("X-Owner-Key") owner: String, @Path("id") id: String): Response<JobProgress>
     @Multipart @POST("api/v1/listings/process")
     suspend fun processListing(@Part photo: MultipartBody.Part, @Part audio: MultipartBody.Part,
         @Part("language") language: RequestBody): Response<ProcessApiResponse>
@@ -78,3 +86,13 @@ interface KalaSetuApi {
     @POST("api/v1/tts")
     suspend fun tts(@Body request: TtsApiRequest): Response<ResponseBody>
 }
+
+@JsonClass(generateAdapter = true)
+data class JobAccepted(val job_id: String, val poll_url: String, val state: String)
+@JsonClass(generateAdapter = true)
+data class JobProgress(val id: String, val state: String, val result: ProcessApiResponse? = null,
+    val error: ErrorApiDto? = null)
+@JsonClass(generateAdapter = true)
+data class SocialRequest(val listing: ListingApiDto, val language: String)
+@JsonClass(generateAdapter = true)
+data class SocialContent(val caption: String, val story: String, val hashtags: List<String>, val call_to_action: String)

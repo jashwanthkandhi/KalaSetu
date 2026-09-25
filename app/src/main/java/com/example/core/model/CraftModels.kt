@@ -15,6 +15,8 @@ enum class CraftCategory(val displayName: String, val iconRes: String) {
     JEWELLERY("Jewellery", "jewellery"),
     PAINTINGS("Paintings", "paintings"),
     LEATHER("Leather", "leather"),
+    METALWORK("Metalwork", "metalwork"),
+    STONE("Stone", "stone"),
     OTHER("Other", "other");
 
     companion object {
@@ -78,11 +80,13 @@ data class ProcessResponse(
 )
 
 enum class ProcessingStage(val stepNumber: Int) {
+    QUEUED(0),
     TRANSCRIBING(1),
     ENHANCING_IMAGE(2),
     CATEGORISING(3),
-    GENERATING_LISTING(4),
-    COMPLETED(5),
+    PRICING(4),
+    GENERATING_LISTING(5),
+    COMPLETED(6),
     FAILED(-1)
 }
 
