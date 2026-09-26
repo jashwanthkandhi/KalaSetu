@@ -137,54 +137,54 @@ India is home to over 200 million traditional craftspeople producing authentic h
 
 ```mermaid
 flowchart TD
-    subgraph MobileClient["📱 Android Mobile Client (Kotlin + Jetpack Compose)"]
-        UI[Artisan UI / Camera / Audio Recorder]
-        RoomDB[(Local Room Database\nOffline Drafts & Queue)]
-        TTS_Client[TTS Player / Narration Engine]
-        UI <-->|Local Cache & Sync| RoomDB
-        UI -->|Play Voice Narration| TTS_Client
+    subgraph MobileClient ["📱 Android Mobile Client (Kotlin + Jetpack Compose)"]
+        UI["Artisan UI / Camera / Audio Recorder"]
+        RoomDB[("Local Room Database<br/>Offline Drafts & Queue")]
+        TTS_Client["TTS Player / Narration Engine"]
+        UI <-->|"Local Cache & Sync"| RoomDB
+        UI -->|"Play Voice Narration"| TTS_Client
     end
 
-    subgraph BackendGateway["⚡ FastAPI Backend Services (Python 3.10+)"]
-        API[FastAPI Gateway / Router]
-        JobRunner[Durable Job Runner & Workers]
-        CraftIntel[Craft Intelligence & Taxonomy Engine]
-        FairPricing[Artisan Cost-Plus Wage Engine]
+    subgraph BackendGateway ["⚡ FastAPI Backend Services (Python 3.10+)"]
+        API["FastAPI Gateway / Router"]
+        JobRunner["Durable Job Runner & Workers"]
+        CraftIntel["Craft Intelligence & Taxonomy Engine"]
+        FairPricing["Artisan Cost-Plus Wage Engine"]
         API --> JobRunner
         API --> CraftIntel
         API --> FairPricing
     end
 
-    subgraph AIProviders["🧠 AI & External Providers"]
-        SarvamSTT[Sarvam AI Indic Speech-to-Text]
-        WhisperSTT[Whisper STT Fallback]
-        NvidiaLLM[NVIDIA NIM Nemotron LLM]
-        SerpApiPricing[SerpApi Live Google Shopping]
-        SarvamTTS[Sarvam Bulbul / Google TTS]
+    subgraph AIProviders ["🧠 AI & External Providers"]
+        SarvamSTT["Sarvam AI Indic Speech-to-Text"]
+        WhisperSTT["Whisper STT Fallback"]
+        NvidiaLLM["NVIDIA NIM Nemotron LLM"]
+        SerpApiPricing["SerpApi Live Google Shopping"]
+        SarvamTTS["Sarvam Bulbul / Google TTS"]
     end
 
-    subgraph CloudStorage["☁️ Cloud Layer (Supabase)"]
-        PostgresDB[(PostgreSQL 15+ & RLS)]
-        PublicView[Sanitized Marketplace View]
-        StorageBuckets[Storage: listing-images / processing-inputs]
+    subgraph CloudStorage ["☁️ Cloud Layer (Supabase)"]
+        PostgresDB[("PostgreSQL 15+ and RLS")]
+        PublicView["Sanitized Marketplace View"]
+        StorageBuckets["Storage: listing-images / processing-inputs"]
         PostgresDB --- PublicView
     end
 
     %% Client to Backend
-    UI -->|1. Multipart Upload / Stream Jobs| API
-    API -->|2. SSE Live Progress Stream| UI
+    UI -->|"1. Multipart Upload / Stream Jobs"| API
+    API -->|"2. SSE Live Progress Stream"| UI
 
     %% Backend to AI
-    JobRunner -->|3a. Transcribe Audio| SarvamSTT
-    SarvamSTT -.->|Fallback| WhisperSTT
-    JobRunner -->|3b. Generate Grounded Listing| NvidiaLLM
-    JobRunner -->|3c. Fetch Live Market Guidance| SerpApiPricing
-    API -->|Synthesize Speech| SarvamTTS
+    JobRunner -->|"3a. Transcribe Audio"| SarvamSTT
+    SarvamSTT -.->|"Fallback"| WhisperSTT
+    JobRunner -->|"3b. Generate Grounded Listing"| NvidiaLLM
+    JobRunner -->|"3c. Fetch Live Market Guidance"| SerpApiPricing
+    API -->|"Synthesize Speech"| SarvamTTS
 
     %% Cloud Storage Interactions
-    JobRunner -->|Persist Job State| PostgresDB
-    UI -->|4. Authenticated Publish (X-Owner-Key)| PostgresDB
-    UI -->|Upload High-Res Assets| StorageBuckets
+    JobRunner -->|"Persist Job State"| PostgresDB
+    UI -->|"4. Authenticated Publish with Owner Key"| PostgresDB
+    UI -->|"Upload High-Res Assets"| StorageBuckets
 ```
 
 ---
