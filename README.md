@@ -8,6 +8,7 @@
 </p>
 
 <p align="center">
+  <a href="#-download-apk">Download APK</a> •
   <a href="#the-problem">The Problem</a> •
   <a href="#our-solution">Our Solution</a> •
   <a href="#features">Features</a> •
@@ -17,12 +18,39 @@
 </p>
 
 <p align="center">
+  <a href="release/kalasetu-app-debug.apk?raw=true"><img src="https://img.shields.io/badge/Download-APK%20(v2.0)-success?style=for-the-badge&logo=android&logoColor=white" alt="Download APK"></a>
   <img src="https://img.shields.io/badge/Kotlin-0095D5?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-4285F4?style=for-the-badge&logo=android&logoColor=white" alt="Jetpack Compose">
   <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase">
   <img src="https://img.shields.io/badge/NVIDIA_NIM-76B900?style=for-the-badge&logo=nvidia&logoColor=white" alt="NVIDIA NIM">
 </p>
+
+---
+
+## 📱 Download APK
+
+Want to test or use **KalaSetu** directly on an Android device? You can download the pre-compiled APK file right away without needing Android Studio or a local build environment:
+
+<p align="center">
+  <a href="release/kalasetu-app-debug.apk?raw=true">
+    <img src="https://img.shields.io/badge/Download%20APK-kalasetu--app--debug.apk%20(24.5%20MB)-34A853?style=for-the-badge&logo=android&logoColor=white" alt="Direct APK Download">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/jashwanthkandhi/KalaSetu/releases">
+    <img src="https://img.shields.io/badge/GitHub-Releases%20Page-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Releases">
+  </a>
+</p>
+
+### 📥 Download Links
+- **Direct Repository File:** [`release/kalasetu-app-debug.apk`](release/kalasetu-app-debug.apk?raw=true)
+- **GitHub Releases:** [KalaSetu Releases](https://github.com/jashwanthkandhi/KalaSetu/releases)
+
+### 📲 Quick Install Guide for Android:
+1. **Download:** Click the download button above on your Android phone (or download on PC and transfer to phone).
+2. **Open:** Open the downloaded `.apk` file from your device notifications or `Files / Downloads` folder.
+3. **Allow Unknown Sources:** If prompted with *"For your security, your phone is not allowed to install unknown apps from this source"*, tap **Settings** and toggle **"Allow from this source"**.
+4. **Complete Setup:** Tap **Install**, then open KalaSetu!
 
 ---
 
